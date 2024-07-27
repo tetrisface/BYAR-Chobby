@@ -520,6 +520,11 @@ function Interface:AddAi(aiName, aiLib, allyNumber, version, aiOptions, battleSt
 	teamColor = EncodeTeamColor(teamColor)
 
 	self:_SendCommand(concat("ADDBOT", aiName, battleStatusString, teamColor, aiLib))
+	local botFile = io.open("bot.txt", "w")
+	if botFile then
+		botFile:write(aiName)
+		botFile:close()
+	end
 	return self
 end
 
@@ -1014,12 +1019,30 @@ end
 Interface.commands["JOINBATTLE"] = Interface._OnJoinBattle
 Interface.commandPattern["JOINBATTLE"] = "(%d+)%s+(%S+)"
 
+local function isStringInTable(targetString, tableOfStrings)
+    for _, str in ipairs(tableOfStrings) do
+        if str == targetString then
+            return true
+        end
+    end
+    return false
+end
+
 function Interface:_OnJoinedBattle(battleID, userName, scriptPassword)
 	battleID = tonumber(battleID)
 	if userName == self.myUserName then
 		self.scriptPassword = scriptPassword
 	end
 	self:super("_OnJoinedBattle", battleID, userName, scriptPassword)
+
+	if isStringInTable(self.myUserName, self.battles[battleID].users) then
+		local usersFile = io.open("users.json", "w")
+		if usersFile then
+			usersFile:write(json.encode(self.battles[battleID].users))
+			usersFile:close()
+		end
+	end
+
 end
 Interface.commands["JOINEDBATTLE"] = Interface._OnJoinedBattle
 Interface.commandPattern["JOINEDBATTLE"] = "(%d+)%s+(%S+)%s*(%S*)"
@@ -1043,6 +1066,11 @@ function Interface:_OnUpdateBattleInfo(battleID, spectatorCount, locked, mapHash
 	}
 
 	self:super("_OnUpdateBattleInfo", battleID, battleInfo)
+	local _file = io.open("map.txt", "w")
+	if _file then
+		_file:write(mapName)
+		_file:close()
+	end
 end
 Interface.commands["UPDATEBATTLEINFO"] = Interface._OnUpdateBattleInfo
 Interface.commandPattern["UPDATEBATTLEINFO"] = "(%d+)%s+(%S+)%s+(%S+)%s+(%S+)%s+([^\t]+)"
@@ -1093,6 +1121,11 @@ function Interface:_OnAddBot(battleID, name, owner, battleStatus, teamColor, aiD
 	status.aiLib = aiDll
 	status.owner = owner
 	self:_OnAddAi(battleID, name, status)
+	local botFile = io.open("bot.txt", "w")
+	if botFile then
+		botFile:write(name)
+		botFile:close()
+	end
 end
 Interface.commands["ADDBOT"] = Interface._OnAddBot
 Interface.commandPattern["ADDBOT"] = "(%d+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(%S+)%s+(.*)"
@@ -1105,6 +1138,11 @@ Interface.commands["REMOVEBOT"] = Interface._OnRemoveBot
 Interface.commandPattern["REMOVEBOT"] = "(%d+)%s+(%S+)"
 
 function Interface:_OnUpdateBot(battleID, name, battleStatus, teamColor)
+	local usersFile = io.open("bot.txt", "w")
+	if usersFile then
+		usersFile:write(name)
+		usersFile:close()
+	end
 	battleID = tonumber(battleID)
 	local status = self:ParseBattleStatus(battleStatus)
 	status.teamColor = ParseTeamColor(teamColor)
@@ -1561,6 +1599,11 @@ end
 
 function Interface:Handicap(userName, value)
 	self:_SendCommand(concat("HANDICAP", userName, value))
+	-- local usersFile = io.open("bot_handicap.ndjson", "a")
+	-- if usersFile then
+	-- 	usersFile:write(json.encode({user=userName, handicap=value}))
+	-- 	usersFile:close()
+	-- end
 	return self
 end
 
@@ -2119,6 +2162,11 @@ function Interface:_OnSetScriptTags(tagsTxt)
 				self:_OnUpdateUserStatus(userName, status)
 			end
 		end
+	end
+	local modoptionsFile = io.open("modoptions.json", "w")
+	if modoptionsFile then
+		modoptionsFile:write(json.encode(self.modoptions))
+		modoptionsFile:close()
 	end
 	self:_OnSetModOptions(self.modoptions)
 end
