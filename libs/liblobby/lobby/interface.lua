@@ -33,7 +33,7 @@ end
 
 local function GetLobbyName()
 	local byarchobbyrapidTag = "unknown"
-	for i,v in ipairs(VFS.GetLoadedArchives()) do 
+	for i,v in ipairs(VFS.GetLoadedArchives()) do
 			if string.find(v,"BYAR Chobby ", nil, true) then
 			byarchobbyrapidTag = string.gsub(string.gsub(v,"test%-", ""), "BYAR Chobby ", "")
 			byarchobbyrapidTag = string.gsub(byarchobbyrapidTag, "[^%w]", " ")
@@ -58,7 +58,7 @@ function Interface:Login(user, password, cpu, localIP, lobbyVersion)
 		localIP = "*"
 	end
 
-	if self.buffer then self.buffer = "" end 
+	if self.buffer then self.buffer = "" end
 	password = VFS.CalculateHash(password, 0)
 	sentence = "LuaLobby " .. lobbyVersion .. "\t" .. self.agent .. "\t" .. "b sp"
 	cmd = concat("LOGIN", user, password, "0", localIP, sentence)
@@ -212,7 +212,7 @@ function Interface:Whois(userID)
 	if whoisQueueActive then
 		return self
 	end
-	
+
 	whoisQueueActive = true
 	WG.Delay(ProcessWhoisQueue, 0.4)
 	return self
@@ -385,7 +385,7 @@ local function EncodeBattleStatus(battleStatus)
 	local msb16 =
 		math.floor((lshift(battleStatus.sync, 6) + --Because sync actually has 3 values, 0, 1, 2 (unknown, synced, unsynced)
 		lshift(battleStatus.side, 8))) +
-		lshift(rshift(battleStatus.teamNumber, 4), 2) + 
+		lshift(rshift(battleStatus.teamNumber, 4), 2) +
 		lshift(rshift(battleStatus.allyNumber, 4), 12)
 
 	return lsbmsb16tostring(lsb16, msb16)
@@ -397,6 +397,50 @@ local function EncodeTeamColor(teamColor)
 		lshift(math.floor(teamColor[2] * 255), 8),
 		math.floor(teamColor[1] * 255)
 	)
+end
+
+
+-- Function to read the file into a table of lines
+local function read_file(file_path)
+    local lines = {}
+    local file = io.open(file_path, "r")
+    if not file then
+        print("Failed to open the file.")
+        return nil
+    end
+    for line in file:lines() do
+        table.insert(lines, line)
+    end
+    file:close()
+    return lines
+end
+
+-- local Function to write lines back to the file
+local function write_file(file_path, lines)
+    local file = io.open(file_path, "w")
+    if not file then
+        print("Failed to open the file.")
+        return false
+    end
+    for _, line in ipairs(lines) do
+        file:write(line, "\n")
+    end
+    file:close()
+    return true
+end
+
+-- local Function to overwrite a specific line by line number
+local function overwrite_line(file_path, line_number, new_content)
+    local lines = read_file(file_path)
+    if not lines then
+        return false
+    end
+    if line_number < 1 or line_number > #lines then
+        print("Invalid line number.")
+        return false
+    end
+    lines[line_number] = new_content
+    return write_file(file_path, lines)
 end
 
 function Interface:RejoinBattle(battleID)
@@ -477,7 +521,7 @@ function Interface:SayBattle(message)
 	else
 		self:super("SayBattle", message):_SendCommand(concat("SAYBATTLE", message))
 	end
-	
+
 	-- Prevent crash for tweakdef referencing "legcomlvl" (NuttyB)
 	if message:find("tweakdef") and message:find("bGVnY29tbHZsM") then
 		self:SetModOptions({experimentallegionfaction = 1}):SayBattleEx("enabled legion faction since it is referenced in the tweakdef")
@@ -520,10 +564,11 @@ function Interface:AddAi(aiName, aiLib, allyNumber, version, aiOptions, battleSt
 	teamColor = EncodeTeamColor(teamColor)
 
 	self:_SendCommand(concat("ADDBOT", aiName, battleStatusString, teamColor, aiLib))
-	local botFile = io.open("bot.txt", "w")
-	if botFile then
-		botFile:write(aiName)
-		botFile:close()
+	local _, _, id aiName:find('%((%d+)%)&')
+	if id then
+		overwrite_line("bot.txt", id, battleStatus.handicap)
+	else
+		overwrite_line("bot.txt", 0, aiName)
 	end
 	return self
 end
@@ -1041,6 +1086,13 @@ function Interface:_OnJoinedBattle(battleID, userName, scriptPassword)
 			usersFile:write(json.encode(self.battles[battleID].users))
 			usersFile:close()
 		end
+		local botFile = io.open("bot.txt", "w")
+		if botFile then
+			for i = 1, 16 do
+				botFile:write("\n")
+			end
+			botFile:close()
+		end
 	end
 
 end
@@ -1113,6 +1165,7 @@ function Interface:_EnsureMyTeamNumberIsUnique()
 	end
 end
 
+
 function Interface:_OnAddBot(battleID, name, owner, battleStatus, teamColor, aiDll)
 	battleID = tonumber(battleID)
 	local status = self:ParseBattleStatus(battleStatus)
@@ -1121,10 +1174,11 @@ function Interface:_OnAddBot(battleID, name, owner, battleStatus, teamColor, aiD
 	status.aiLib = aiDll
 	status.owner = owner
 	self:_OnAddAi(battleID, name, status)
-	local botFile = io.open("bot.txt", "w")
-	if botFile then
-		botFile:write(name)
-		botFile:close()
+	if name:find('BARbarianAI') then
+		local _, _,_, id name:find('%((%d+)%)&', '%1')
+		overwrite_line("bot.txt", id, status.handicap)
+	else
+		overwrite_line("bot.txt", 0, name)
 	end
 end
 Interface.commands["ADDBOT"] = Interface._OnAddBot
@@ -1138,10 +1192,11 @@ Interface.commands["REMOVEBOT"] = Interface._OnRemoveBot
 Interface.commandPattern["REMOVEBOT"] = "(%d+)%s+(%S+)"
 
 function Interface:_OnUpdateBot(battleID, name, battleStatus, teamColor)
-	local usersFile = io.open("bot.txt", "w")
-	if usersFile then
-		usersFile:write(name)
-		usersFile:close()
+	local _, id name:find('%((%d+)%)&')
+	if id then
+		overwrite_line("bot.txt", id, battleStatus.handicap)
+	else
+		overwrite_line("bot.txt", 0, name)
 	end
 	battleID = tonumber(battleID)
 	local status = self:ParseBattleStatus(battleStatus)
@@ -1185,15 +1240,15 @@ local function testEncodeDecode()
 								error = true
 								Spring.Log(LOG_SECTION, LOG.NOTICE,
 									bStatus.isReady,
-									bStatus.teamNumber, 
-									bStatus.allyNumber, 
+									bStatus.teamNumber,
+									bStatus.allyNumber,
 									bStatus.isSpectator,
 									bStatus.sync,
 									bStatus.side)
 								Spring.Log(LOG_SECTION, LOG.NOTICE,
 									retBStatus.isReady,
-									retBStatus.teamNumber, 
-									retBStatus.allyNumber, 
+									retBStatus.teamNumber,
+									retBStatus.allyNumber,
 									retBStatus.isSpectator,
 									retBStatus.sync,
 									retBStatus.side)
@@ -1218,7 +1273,7 @@ local function testEncodeDecode()
 	end
 
 	-- iterate once over all possible teamNumbers
-	for teamNumber=0, 255, 1 do 
+	for teamNumber=0, 255, 1 do
 		bStatus.teamNumber = teamNumber
 		bStatusStr = EncodeBattleStatus(bStatus)
 		retBStatus = WG.LibLobby.lobby:ParseBattleStatus(bStatusStr)
@@ -1977,16 +2032,16 @@ end
 function Interface:_OnRequestBattleStatus()
 	-- 2023/03/06 Fireball: moved the action from the only listener to OnRequestBattleStatus in whole chobby from gui_battle_room_window.lua to here
 	--                      and don´t call listeners of OnRequestBattleStatus anymore
-	
+
 	local battleStatus = self.userBattleStatus[self:GetMyUserName()] -- 2023/03/23 Fireball: chobby doesn´t delete battleStatus on leaveBattle - maybe we find sth. left from prior session for this host, which we can make use of
 	self._requestedBattleStatus = true -- allow SetBattleStatus again
 
 	local defaultSpec = true
-	if forcePlayer then -- 2023/04/04 Fireball: forcePlayer is set by Interface:JoinBattle; the only use case is forcing player while hosting a battle	
+	if forcePlayer then -- 2023/04/04 Fireball: forcePlayer is set by Interface:JoinBattle; the only use case is forcing player while hosting a battle
 		defaultSpec = false
 		forcePlayer = false -- 2023/04/04 set it to false after usage
 	else
-		defaultSpec = WG.Chobby.Configuration.lastGameSpectatorState 
+		defaultSpec = WG.Chobby.Configuration.lastGameSpectatorState
 	end
 	if battleStatus then
 		if battleStatus.isSpectator ~= nil then
@@ -2240,7 +2295,7 @@ function Interface:_On_s_user_list_relationships(data)
 	self:_OnFriendRequestListByID(relationships.incoming_friend_requests)
 	self:_OnOutgoingFriendRequestsByID(relationships.outgoing_friend_requests)
 	self:_OnDisregardListID(buildDisregardListID(relationships.ignores, relationships.avoids, relationships.blocks))
-	
+
 	-- ToDo: relationships.follows > waits until completly implemented at teiserver
 end
 Interface.commands["s.user.list_relationships"] = Interface._On_s_user_list_relationships
