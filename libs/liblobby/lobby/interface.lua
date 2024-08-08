@@ -546,7 +546,7 @@ function Interface:SetModOptions(data)
 end
 
 function Interface:AddAi(aiName, aiLib, allyNumber, version, aiOptions, battleStatusOptions)
-	local battleStatus = {
+	local userData = {
 		isReady = true,
 		teamNumber = self:GetUnusedTeamID(),
 		allyNumber = allyNumber,
@@ -555,7 +555,7 @@ function Interface:AddAi(aiName, aiLib, allyNumber, version, aiOptions, battleSt
 		side = 0,
 	}
 
-	battleStatus, updated = UpdateAndCreateMerge(battleStatus, battleStatusOptions or {})
+	local battleStatus, updated = UpdateAndCreateMerge(userData, battleStatusOptions or {})
 
 	aiName = aiName:gsub(" ", "")
 	local battleStatusString = EncodeBattleStatus(battleStatus)
@@ -1130,6 +1130,12 @@ Interface.commandPattern["UPDATEBATTLEINFO"] = "(%d+)%s+(%S+)%s+(%S+)%s+(%S+)%s+
 function Interface:_OnClientBattleStatus(userName, battleStatus, teamColor)
 	local status = self:ParseBattleStatus(battleStatus)
 	status.teamColor = ParseTeamColor(teamColor)
+
+	local userInfo = self.users[userName]
+	if userInfo and (not userInfo.battleID or userInfo.battleID ~= self:GetMyBattleID()) then
+		Spring.Log(LOG_SECTION, LOG.WARNING, "Can't update user's battle status, user is not in our battle:  ", userName)
+		return
+	end
 
 	self:_OnUpdateUserBattleStatus(userName, status)
 	if userName == self.myUserName then
@@ -2043,24 +2049,13 @@ function Interface:_OnRequestBattleStatus()
 	else
 		defaultSpec = WG.Chobby.Configuration.lastGameSpectatorState
 	end
-	if battleStatus then
-		if battleStatus.isSpectator ~= nil then
-			defaultSpec = battleStatus.isSpectator
-		end
-		self:SetBattleStatus({
-			isSpectator =  defaultSpec,
-			isReady = false,
-			side = battleStatus.side or WG.Chobby.Configuration.lastFactionChoice,
-			sync = getSyncStatus(self:GetBattle(self:GetMyBattleID())),
-		})
-	else
-		self:SetBattleStatus({
-			isSpectator = defaultSpec,
-			isReady = false,
-			side = (WG.Chobby.Configuration.lastFactionChoice or 0) ,
-			sync = getSyncStatus(self:GetBattle(self:GetMyBattleID())),
-		})
-	end
+
+	self:SetBattleStatus({
+		isSpectator = defaultSpec,
+		isReady = false,
+		side = (WG.Chobby.Configuration.lastFactionChoice or 0) ,
+		sync = getSyncStatus(self:GetBattle(self:GetMyBattleID())),
+	})
 end
 Interface.commands["REQUESTBATTLESTATUS"] = Interface._OnRequestBattleStatus
 
@@ -2305,8 +2300,12 @@ Interface.commandPattern["s.user.list_relationships"] = "(.+)"
 function Interface:_OnOK(tags)
 	local Configuration = WG.Chobby.Configuration
 	local tags = parseTags(tags)
-	local cmd = getTag(tags, "cmd", true)
-	local userName = getTag(tags, "userName", true)
+	local cmd = getTag(tags, "cmd", false)
+	local userName = getTag(tags, "userName", false)
+	if not (cmd and userName) then
+		Spring.Log(LOG_SECTION, LOG.WARNING, "Received OK command with wrong format.")
+		return
+	end
 
 	if cmd == 'c.user.ignore' then
 		self:_OnDisregard(userName, Configuration.IGNORE)
@@ -2330,8 +2329,8 @@ function Interface:_OnNo(tags)
 	local userName = getTag(tags, "userName", false) or "unknown"
 	Spring.Log(LOG_SECTION, LOG.ERROR, string.format("Server answered NO to command=%s and userName=%s", cmd, userName))
 end
-Interface.commands["OK"] = Interface._OnOK
-Interface.commandPattern["OK"] = "(.+)"
+Interface.commands["NO"] = Interface._OnNo
+Interface.commandPattern["NO"] = "(.+)"
 
 function Interface:_On_s_user_new_incoming_friend_request(userID)
 	userID = tonumber(userID)
