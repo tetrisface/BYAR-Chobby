@@ -37,12 +37,12 @@ Scoring:
 	Brutal:   Your Resources    = -20%,  Enemy Resources= +50%
 ]],
 
-	mapfilename		= "Lake Carne v2", -- the name of the map to be displayed here, and which to play on, no .smf ending needed
+	mapfilename		= "Lake Carne v2.0.1", -- the name of the map to be displayed here, and which to play on, no .smf ending needed
 	playerstartx	= "16%", -- X position of where player comm icon should be drawn, from top left of the map
 	playerstarty	= "26%", -- Y position of where player comm icon should be drawn, from top left of the map
 	partime 		= 5400, -- par time in seconds (time a mission is expected to take on average)
 	parresources	= 1500000, -- par resource amount (amount of metal one is expected to spend on mission)
-	difficulty		= 10, -- Percieved difficulty at 'normal' level: integer 1-10
+	difficulty		= 10.1, -- Percieved difficulty at 'normal' level: integer 1-10
     defaultdifficulty = "Normal", -- an entry of the difficulty table
     difficulties    = { -- Array for sortedness, Keys are text that appears in selector (as well as in scoring!), values are handicap levels
     -- handicap values range [-100 - +100], with 0 being regular resources
