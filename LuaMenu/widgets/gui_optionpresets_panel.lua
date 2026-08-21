@@ -91,7 +91,7 @@ local function refreshJSONData()
 		return
 	end
 
-	-- "*a" (whole file): a plain read() only returns the first line
+	-- "*a" for whole file (Default is one line)
 	local content = modfile:read("*a")
 	modfile:close()
 
@@ -100,6 +100,10 @@ local function refreshJSONData()
 		jsondata = decoded
 		return
 	end
+
+	-- tostring guards non-string errors, sub bounds the length: diagnostics must
+	-- never take down the recovery path
+	Spring.Echo("optionsPresets.json decode failed: " .. tostring(decoded):sub(1, 512))
 
 	-- Corrupt file: keep a backup copy before anything overwrites it.
 	jsondata = {}
