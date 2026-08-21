@@ -70,43 +70,6 @@ end
 --------------------------------------------------------------------------------
 --- Helper functions
 --------------------------------------------------------------------------------
-local function refreshJSONData()
-	local modfile = io.open("optionsPresets.json", 'r')
-	if modfile ~= nil then
-		local boolOut
-		boolOut, jsondata = pcall(Json.decode, modfile:read())
-
-		-- handles broken json file
-		if not boolOut or jsondata == nil or type(jsondata) ~= "table" then
-			--error during file reading, should output read text TODO
-			local localtime = os.date('%Y-%m-%d-%H:%M:%S')
-			local oldfile = "optionsPresets.json"
-			local errorfile = "optionsPresetsError:" .. localtime .. ".json"
-			writeError("Error reading preset file\n " .. oldfile .. " was moved to \n" .. errorfile)
-
-			modfile:close()
-			local renamesuccess = os.rename(oldfile, errorfile)
-			if not renamesuccess then
-				Spring.Echo("fail during rename")
-				return
-			end
-			-- generate a new file
-			refreshJSONData()
-			return
-		end
-	end
-	if modfile == nil then
-		-- creates file when it does not exist
-		jsondata = {}
-		-- jsondata["defaultPreset"] = {}
-		modfile = io.open("optionsPresets.json", 'w')
-		local jsonobj = Json.encode(jsondata)
-		modfile:write(jsonobj)
-	end
-
-	modfile:close()
-end
-
 -- writes preset changes to file
 local function saveJSONData()
 	local modfile = io.open("optionsPresets.json", 'w')
@@ -117,6 +80,50 @@ local function saveJSONData()
 	local jsonobj = Json.encode(jsondata)
 	modfile:write(jsonobj)
 	modfile:close()
+end
+
+local function refreshJSONData()
+	local modfile = io.open("optionsPresets.json", 'r')
+	if modfile == nil then
+		-- creates file when it does not exist
+		jsondata = {}
+		saveJSONData()
+		return
+	end
+
+	-- "*a" (whole file): a plain read() only returns the first line
+	local content = modfile:read("*a")
+	modfile:close()
+
+	local ok, decoded = pcall(Json.decode, content)
+	if ok and type(decoded) == "table" then
+		jsondata = decoded
+		return
+	end
+
+	-- Corrupt file: keep a backup copy before anything overwrites it.
+	jsondata = {}
+	local backupName = "optionsPresetsError_" .. os.date('%Y-%m-%d_%H-%M-%S') .. ".json"
+	local backupFile = io.open(backupName, 'w')
+	if backupFile == nil then
+		writeError("Error reading preset file\n backup failed, file left untouched")
+		return
+	end
+	backupFile:write(content)
+	backupFile:close()
+
+	-- Encoders before json.lua 0.9.50.2 wrote raw CR bytes into string values;
+	-- try to recover the presets before falling back to an empty file.
+	ok, decoded = pcall(Json.decode, Json.repair(content))
+	if ok and type(decoded) == "table" then
+		jsondata = decoded
+		saveJSONData()
+		writeError("Repaired preset file\n original backed up as \n" .. backupName)
+		return
+	end
+
+	saveJSONData()
+	writeError("Error reading preset file\n it was backed up as \n" .. backupName)
 end
 
 local function applyPresetThrottled(modoptions, progressCallback, cancelToken)
