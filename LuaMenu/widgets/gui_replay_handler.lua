@@ -507,7 +507,8 @@ local function CreateReplayEntry(
 						return
 					end
 					local started = RequestSavePreset(
-						replayPath, mapName, mapName .. " " .. battleType(teams),
+						replayPath, mapName,
+						string.sub(replayDateString, 1, 10) .. " " .. mapName .. " " .. battleType(teams),
 						function()
 							obj:SetCaption(i18n("save_preset"))
 						end
