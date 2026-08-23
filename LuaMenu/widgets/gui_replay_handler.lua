@@ -289,17 +289,27 @@ local function OpenSavePresetPopup(suggestedName, preset)
 	})
 end
 
-local function RequestSavePreset(replayPath, mapName, suggestedName)
+-- onFinally runs on every outcome (reply, error, timeout) so the caller can
+-- clear its busy state. Returns whether a request was actually started.
+local function RequestSavePreset(replayPath, mapName, suggestedName, onFinally)
 	if pendingPresetRequests[replayPath] then
-		return
+		return false
 	end
 	if not (WG.WrapperLoopback and WG.WrapperLoopback.ReadReplayDetails and WG.OptionpresetsPanel) then
 		ShowPresetFailurePopup()
-		return
+		return false
+	end
+
+	if WG.Chobby.Configuration.debugMode then
+		Spring.Echo("ReplayHandler: requesting replay details for", replayPath)
 	end
 
 	pendingPresetRequests[replayPath] = function(details)
+		if onFinally then
+			onFinally()
+		end
 		if details.error then
+			Spring.Log("ReplayHandler", LOG.ERROR, "ReadReplayDetails failed: " .. tostring(details.error))
 			ShowPresetFailurePopup()
 			return
 		end
@@ -310,9 +320,15 @@ local function RequestSavePreset(replayPath, mapName, suggestedName)
 	WG.Delay(function()
 		if pendingPresetRequests[replayPath] then
 			pendingPresetRequests[replayPath] = nil
+			Spring.Log("ReplayHandler", LOG.WARNING,
+				"No ReadReplayDetails reply for " .. replayPath .. " - launcher without the replay_details extension?")
+			if onFinally then
+				onFinally()
+			end
 			ShowPresetFailurePopup()
 		end
 	end, PRESET_DETAILS_TIMEOUT_SECONDS)
+	return true
 end
 
 local function CreateReplayEntry(
@@ -464,6 +480,47 @@ local function CreateReplayEntry(
 		}
 	end
 
+	local function CheckReplayFileExists()
+		if not VFS.FileExists(replayPath) then
+			WG.Chobby.InformationPopup(i18n("replay_not_found"), {width = 315, height = 200})
+			return false
+		else
+			return true
+		end
+	end
+
+	-- Created before userList: it overlaps userList's greedy hit-test area,
+	-- and Chili gives earlier children hit-test priority.
+	if WG.OptionpresetsPanel and WG.TextEntryWindow then
+		Button:New {
+			x = "78%",
+			y = "10%",
+			bottom = "55%",
+			width = "10%",
+			caption = i18n("save_preset"),
+			classname = "option_button",
+			objectOverrideFont = WG.Chobby.Configuration:GetFont(2),
+			tooltip = i18n("save_preset_tooltip"),
+			OnClick = {
+				function(obj)
+					if not replayPath or not CheckReplayFileExists() then
+						return
+					end
+					local started = RequestSavePreset(
+						replayPath, mapName, mapName .. " " .. battleType(teams),
+						function()
+							obj:SetCaption(i18n("save_preset"))
+						end
+					)
+					if started then
+						obj:SetCaption("...")
+					end
+				end
+			},
+			parent = replayPanel,
+		}
+	end
+
 	-- Compute the teams/players lists
 
 	local userList = Chili.Control:New {
@@ -586,15 +643,6 @@ local function CreateReplayEntry(
 	userList.tooltip = WG.Chobby.Configuration.REPLAY_TOOLTIP_PREFIX .. replayPath
 	userList.greedyHitTest = true
 
-	local function CheckReplayFileExists()
-		if not VFS.FileExists(replayPath) then
-			WG.Chobby.InformationPopup(i18n("replay_not_found"), {width = 315, height = 200})
-			return false
-		else
-			return true
-		end
-	end
-
 	local function DeleteReplay()
 		-- There's no Lua wrapper for FileSystem::Remove() function, available in Spring (/rts/System/FileSystem/FileSystem.cpp)
 		os.remove(replayPath)
@@ -605,8 +653,8 @@ local function CreateReplayEntry(
 
 	Button:New {
 		x = "89%",
-		y = "8%",
-		bottom = "66%",
+		y = "10%",
+		bottom = "55%",
 		width = "10%",
 		caption = i18n("start"),
 		tooltip = ternary(
@@ -635,32 +683,10 @@ local function CreateReplayEntry(
 		parent = replayPanel,
 	}
 
-	if WG.OptionpresetsPanel and WG.TextEntryWindow then
-		Button:New {
-			x = "89%",
-			y = "37%",
-			bottom = "37%",
-			width = "10%",
-			caption = i18n("save_preset"),
-			classname = "option_button",
-			objectOverrideFont = WG.Chobby.Configuration:GetFont(2),
-			tooltip = i18n("save_preset_tooltip"),
-			OnClick = {
-				function()
-					if not replayPath or not CheckReplayFileExists() then
-						return
-					end
-					RequestSavePreset(replayPath, mapName, mapName .. " " .. battleType(teams))
-				end
-			},
-			parent = replayPanel,
-		}
-	end
-
 	Button:New {
 		x = "89%",
-		y = "66%",
-		bottom = "8%",
+		y = "55%",
+		bottom = "10%",
 		width = "10%",
 		caption = i18n("delete_replay"),
 		classname = "negative_button",
@@ -1048,6 +1074,10 @@ function ReplayHandler.ReadReplayInfoDone(path, engine, game, map, players, time
 end
 
 function ReplayHandler.ReadReplayDetailsDone(command)
+	if WG.Chobby.Configuration.debugMode then
+		Spring.Echo("ReplayHandler: ReadReplayDetailsDone for", command and command.relativePath,
+			"error:", command and command.error)
+	end
 	local handler = command and command.relativePath and pendingPresetRequests[command.relativePath]
 	if not handler then
 		return
