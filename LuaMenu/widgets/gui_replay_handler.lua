@@ -166,6 +166,156 @@ local function playerWidget(playerInfo)
 	return ret
 end
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Save as preset
+
+-- pending ReadReplayDetails requests, keyed by replay path
+local pendingPresetRequests = {}
+
+-- covers launchers without the ReadReplayDetails extension, which never reply
+local PRESET_DETAILS_TIMEOUT_SECONDS = 10
+
+local function ShowPresetFailurePopup()
+	WG.Chobby.InformationPopup(i18n("replay_details_failed"), {width = 420, height = 230})
+end
+
+-- battleStatus side index (0-based into sidedata) for a replay faction name
+local function sideIndexForFaction(faction)
+	local sideData = WG.Chobby.Configuration:GetSideData()
+	if not (faction and sideData) then
+		return nil
+	end
+	for i = 1, #sideData do
+		if string.lower(sideData[i].name) == string.lower(faction) then
+			return i - 1
+		end
+	end
+	return nil
+end
+
+-- Converts the launcher-parsed replay details into the optionsPresets.json
+-- schema applied by gui_optionpresets_panel.lua. Human players are not
+-- captured; a preset describes the setup (map, AIs, boxes, modoptions).
+local function BuildPresetFromReplayDetails(mapName, details)
+	local preset = {
+		["Map"] = mapName,
+	}
+
+	if details.gameSettings and next(details.gameSettings) ~= nil then
+		preset["Modoptions"] = details.gameSettings
+	end
+
+	local allyTeams = details.allyTeams or {}
+	table.sort(allyTeams, function(a, b)
+		return a.allyTeamId < b.allyTeamId
+	end)
+
+	-- Preset ally numbers and start boxes are dense 0-based, while replay
+	-- allyTeamIds may have holes (common in PvE).
+	local denseAllyNumber = {}
+	for index, allyTeam in ipairs(allyTeams) do
+		denseAllyNumber[allyTeam.allyTeamId] = index - 1
+	end
+
+	local startBoxes = {}
+	for _, allyTeam in ipairs(allyTeams) do
+		local box = allyTeam.startBox
+		if box then
+			-- replay boxes are 0-1 fractions, presets use the 0-200 grid
+			table.insert(startBoxes, {
+				left = math.floor(box.left * 200 + 0.5),
+				top = math.floor(box.top * 200 + 0.5),
+				right = math.floor(box.right * 200 + 0.5),
+				bottom = math.floor(box.bottom * 200 + 0.5),
+			})
+		end
+	end
+	if #startBoxes > 0 then
+		preset["Start Boxes"] = startBoxes
+	end
+
+	local bots = {}
+	local haveBots = false
+	for _, ai in ipairs(details.ais or {}) do
+		local key = ai.name or ("AI " .. tostring(ai.aiId))
+		if bots[key] then
+			key = key .. " (" .. tostring(ai.aiId) .. ")"
+		end
+		bots[key] = {
+			aiLib = ai.shortName,
+			allyNumber = denseAllyNumber[ai.allyTeamId] or 0,
+			aiVersion = ai.version,
+			aiOptions = ai.options,
+			side = sideIndexForFaction(ai.faction),
+			handicap = (ai.handicap and ai.handicap ~= 0) and ai.handicap or nil,
+			teamColor = ai.rgbColor and {ai.rgbColor.r, ai.rgbColor.g, ai.rgbColor.b} or nil,
+		}
+		haveBots = true
+	end
+	if haveBots then
+		preset["Bots"] = bots
+	end
+
+	return preset
+end
+
+local function OpenSavePresetPopup(suggestedName, preset)
+	WG.TextEntryWindow.CreateTextEntryWindow({
+		defaultValue = suggestedName,
+		caption = i18n("save_preset"),
+		labelCaption = i18n("save_preset_tooltip"),
+		hint = i18n("save_preset"),
+		width = 450,
+		height = 280,
+		oklabel = "Save",
+		OnAccepted = function(presetName)
+			local function write()
+				if WG.OptionpresetsPanel.WritePresetFromTable(presetName, preset) then
+					WG.Chobby.InformationPopup(i18n("preset_saved_info"), {width = 420, height = 230})
+				end
+			end
+			if WG.OptionpresetsPanel.HasPreset(presetName) then
+				WG.Chobby.ConfirmationPopup(
+					write, i18n("preset_overwrite_confirm", {name = presetName}),
+					nil, 315, 200, i18n("yes"), i18n("no")
+				)
+			else
+				write()
+			end
+		end,
+		OnOpen = function(editBox)
+			editBox:SelectAll()
+		end,
+	})
+end
+
+local function RequestSavePreset(replayPath, mapName, suggestedName)
+	if pendingPresetRequests[replayPath] then
+		return
+	end
+	if not (WG.WrapperLoopback and WG.WrapperLoopback.ReadReplayDetails and WG.OptionpresetsPanel) then
+		ShowPresetFailurePopup()
+		return
+	end
+
+	pendingPresetRequests[replayPath] = function(details)
+		if details.error then
+			ShowPresetFailurePopup()
+			return
+		end
+		OpenSavePresetPopup(suggestedName, BuildPresetFromReplayDetails(mapName, details))
+	end
+
+	WG.WrapperLoopback.ReadReplayDetails(replayPath)
+	WG.Delay(function()
+		if pendingPresetRequests[replayPath] then
+			pendingPresetRequests[replayPath] = nil
+			ShowPresetFailurePopup()
+		end
+	end, PRESET_DETAILS_TIMEOUT_SECONDS)
+end
+
 local function CreateReplayEntry(
 	replayPath, engineName, gameName, mapName, players, time, winningAllyTeamIds
 )
@@ -456,8 +606,8 @@ local function CreateReplayEntry(
 
 	Button:New {
 		x = "89%",
-		y = "10%",
-		bottom = "55%",
+		y = "8%",
+		bottom = "66%",
 		width = "10%",
 		caption = i18n("start"),
 		tooltip = ternary(
@@ -486,10 +636,32 @@ local function CreateReplayEntry(
 		parent = replayPanel,
 	}
 
+	if WG.OptionpresetsPanel and WG.TextEntryWindow then
+		Button:New {
+			x = "89%",
+			y = "37%",
+			bottom = "37%",
+			width = "10%",
+			caption = i18n("save_preset"),
+			classname = "option_button",
+			objectOverrideFont = WG.Chobby.Configuration:GetFont(2),
+			tooltip = i18n("save_preset_tooltip"),
+			OnClick = {
+				function()
+					if not replayPath or not CheckReplayFileExists() then
+						return
+					end
+					RequestSavePreset(replayPath, mapName, mapName .. " " .. battleType(teams))
+				end
+			},
+			parent = replayPanel,
+		}
+	end
+
 	Button:New {
 		x = "89%",
-		y = "55%",
-		bottom = "10%",
+		y = "66%",
+		bottom = "8%",
 		width = "10%",
 		caption = i18n("delete_replay"),
 		classname = "negative_button",
@@ -874,6 +1046,15 @@ function ReplayHandler.ReadReplayInfoDone(path, engine, game, map, players, time
 		Spring.Echo("ReplayHandler: Calling replayListWindow.AddReplay")
 	end
 	replayListWindow.AddReplay(path, engine, game, map, players, time, winningAllyTeamIds)
+end
+
+function ReplayHandler.ReadReplayDetailsDone(command)
+	local handler = command and command.relativePath and pendingPresetRequests[command.relativePath]
+	if not handler then
+		return
+	end
+	pendingPresetRequests[command.relativePath] = nil
+	handler(command)
 end
 
 function ReplayHandler.GetReplayById(replayPath)
