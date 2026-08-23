@@ -165,7 +165,7 @@ local function applyPreset(presetName, progressCallback, cancelToken)
 		-- starting Areas
 		local presetRectangles = presetObj["Start Boxes"]
 		-- calculated the required team size, when it is undefined for the preset
-		if multiplayer and presetMPBattleSettings == nil then
+		if multiplayer and presetMPBattleSettings == nil and presetRectangles ~= nil then
 			battleLobby:SayBattle("!nbTeams " .. #presetRectangles)
 		end
 
@@ -541,6 +541,29 @@ local function writePreset(presetName)
 
 	saveJSONData()
 	refreshPresetMenu()
+end
+
+-- whether a preset with this name exists (for external callers, e.g. the replay list)
+function OptionpresetsPanel.HasPreset(presetName)
+	refreshJSONData()
+	return jsondata[presetName] ~= nil
+end
+
+-- stores a complete preset table under presetName, replacing any existing one
+-- (external write path; the panel itself assembles presets via writePreset)
+function OptionpresetsPanel.WritePresetFromTable(presetName, presetTable)
+	if type(presetName) ~= "string" or presetName == "" or presetName == placeHolder or presetName == "<new>" then
+		return false
+	end
+	if type(presetTable) ~= "table" then
+		return false
+	end
+
+	refreshJSONData()
+	jsondata[presetName] = presetTable
+	saveJSONData()
+	refreshPresetMenu()
+	return true
 end
 
 --------------------------------------------------------------------------------
