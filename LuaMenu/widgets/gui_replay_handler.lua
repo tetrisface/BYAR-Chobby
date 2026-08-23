@@ -265,7 +265,7 @@ local function OpenSavePresetPopup(suggestedName, preset)
 		defaultValue = suggestedName,
 		caption = i18n("save_preset"),
 		labelCaption = i18n("save_preset_tooltip"),
-		hint = i18n("save_preset"),
+		hint = "Enter a name for your preset",
 		width = 450,
 		height = 280,
 		oklabel = "Save",
