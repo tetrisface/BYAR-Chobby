@@ -136,7 +136,7 @@ return {
 		replay_not_found = "Replay file not found, refresh the list!",
 		replay_different_version = "This replay requires a different engine version (will be downloaded automatically if necessary)",
 		save_preset = "Save preset",
-		save_preset_tooltip = "Save this replay's setup (map, AI opponents, start boxes, game options) as a preset. Load it from a battle room's Option Presets menu. Human players are not included.",
+		save_preset_tooltip = "Save this replay's setup (map, AI opponents, start boxes, game options) as a preset. Load it from a battle room's Option Presets menu.",
 		replay_details_failed = "Could not read the replay's full settings. Your launcher may be too old, or the replay file is unreadable.",
 		preset_saved_info = "Preset saved. Load it in a battle room via the Option Presets button.",
 		preset_overwrite_confirm = 'Overwrite existing preset "%{name}"?',

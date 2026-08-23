@@ -195,8 +195,7 @@ local function sideIndexForFaction(faction)
 end
 
 -- Converts the launcher-parsed replay details into the optionsPresets.json
--- schema applied by gui_optionpresets_panel.lua. Human players are not
--- captured; a preset describes the setup (map, AIs, boxes, modoptions).
+-- schema applied by gui_optionpresets_panel.lua
 local function BuildPresetFromReplayDetails(mapName, details)
 	local preset = {
 		["Map"] = mapName,
