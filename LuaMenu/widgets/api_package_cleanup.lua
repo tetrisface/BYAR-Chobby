@@ -25,6 +25,15 @@ local CLEANUP_THRESHOLD = 100
 -- Estimated scan overhead per package (ms), used for user-facing log messages.
 local MS_PER_PACKAGE = 1.4
 
+-- Rapid tags whose current packages must survive cleanup even though they are
+-- not loaded while Chobby runs (e.g. byar:test is only loaded in-game).  The
+-- launcher expects these to stay installed (see dist_cfg/config.json "games")
+-- and joining a battle launches the engine with them without re-downloading.
+local PROTECTED_RAPID_TAGS = {
+	"byar:test",
+	"byar-chobby:test",
+}
+
 --------------------------------------------------------------------------------
 -- Locals
 --------------------------------------------------------------------------------
@@ -48,10 +57,36 @@ local function GetFileName(path)
 	return fileName and fileName:lower()
 end
 
---- Build a set of .sdp filenames that are backing currently-loaded
---- archives (e.g. the chobby menu archive, base content).  These must NOT
---- be deleted or the engine will lose access to menu textures/etc. when it
---- performs internal VFS remap operations (e.g. battle preview UseArchive).
+--- Protect an archive's backing file plus its whole dependency chain
+--- (e.g. "BYAR Chobby $VERSION" pulls in "Beyond All Reason $VERSION").
+local function ProtectArchiveAndDeps(protected, seen, archiveName, reason)
+	if not archiveName or seen[archiveName] then
+		return
+	end
+	seen[archiveName] = true
+	local archivePath = VFS.GetArchivePath(archiveName)
+	local fileName = archivePath and GetFileName(archivePath)
+	if fileName then
+		protected[fileName] = true
+		Spring.Log(LOG_SECTION, LOG.INFO,
+			"Protecting " .. reason .. " archive: " .. archiveName .. " -> " .. fileName)
+	end
+	local deps = VFS.GetArchiveDependencies and VFS.GetArchiveDependencies(archiveName)
+	if deps then
+		for i = 1, #deps do
+			ProtectArchiveAndDeps(protected, seen, deps[i], reason)
+		end
+	end
+end
+
+--- Build a set of .sdp filenames that must NOT be deleted:
+---  * archives backing currently-loaded ones (the chobby menu archive, base
+---    content) — deleting these breaks the running session when the engine
+---    performs internal VFS remap operations (e.g. battle preview UseArchive);
+---  * the current packages of PROTECTED_RAPID_TAGS and their dependencies —
+---    not loaded in the menu, but launching a battle expects them on disk
+---    (deleting e.g. byar:test crashes the spawned engine with
+---    "Dependent archive not found");
 --- Returns nil when the loaded-archive set cannot be determined; callers
 --- must then abort rather than delete blindly.
 local function GetProtectedSdpNames()
@@ -63,13 +98,19 @@ local function GetProtectedSdpNames()
 		return nil
 	end
 	local protected = {}
+	local seen = {}
 	for i = 1, #archives do
-		local archivePath = VFS.GetArchivePath(archives[i])
-		local fileName = archivePath and GetFileName(archivePath)
-		if fileName then
-			protected[fileName] = true
-			Spring.Log(LOG_SECTION, LOG.INFO,
-				"Protecting loaded archive: " .. archives[i] .. " -> " .. fileName)
+		ProtectArchiveAndDeps(protected, seen, archives[i], "loaded")
+	end
+	for i = 1, #PROTECTED_RAPID_TAGS do
+		local tag = PROTECTED_RAPID_TAGS[i]
+		-- Resolved offline from the local rapid index (rapid/*/versions.gz)
+		local archiveName = VFS.GetNameFromRapidTag and VFS.GetNameFromRapidTag(tag)
+		if archiveName then
+			ProtectArchiveAndDeps(protected, seen, archiveName, "rapid tag " .. tag)
+		else
+			Spring.Log(LOG_SECTION, LOG.WARNING,
+				"Could not resolve rapid tag " .. tag .. "; its package is not protected")
 		end
 	end
 	return protected
@@ -145,7 +186,17 @@ local function DoCleanup()
 		Spring.Echo("[" .. LOG_SECTION .. "] Deleted archive cache (will rebuild on next start)")
 	end
 
-	-- 5. Log summary
+	-- 5. Resync the in-memory archive scanner with the disk state.  Without
+	--    this, Chobby still believes deleted archives are installed
+	--    (VFS.HasArchive returns true) and will launch the engine without
+	--    re-downloading them, crashing the game with "Dependent archive not
+	--    found".  After the rescan, missing archives are detected normally
+	--    and re-downloaded on demand.  Typically blocks well under a second.
+	if deleted > 0 and VFS.ScanAllDirs then
+		VFS.ScanAllDirs()
+	end
+
+	-- 6. Log summary
 	local savedMs = math.floor(deleted * MS_PER_PACKAGE)
 	Spring.Echo(string.format(
 		"[%s] Cleaned up %d / %d stale .sdp packages (%d skipped as in-use, %d failed). " ..
