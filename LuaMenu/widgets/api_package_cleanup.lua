@@ -37,24 +37,39 @@ local LOG_SECTION = "PackageCleanup"
 -- Helpers
 --------------------------------------------------------------------------------
 
---- Build a set of .sdp filesystem paths that are backing currently-loaded
+--- Extract the lowercased filename from a path. Comparison must happen on
+--- the filename, not the full path: VFS.DirList returns datadir-relative
+--- paths ("packages/xxx.sdp") while VFS.GetArchivePath returns absolute
+--- ones, so full-path lookups never match (see BYAR-Chobby issue #1251).
+--- The archive scanner itself indexes by lowercased filename, and rapid
+--- .sdp names are unique content hashes, so this is collision-free.
+local function GetFileName(path)
+	local fileName = path:gsub("\\", "/"):match("([^/]+)$")
+	return fileName and fileName:lower()
+end
+
+--- Build a set of .sdp filenames that are backing currently-loaded
 --- archives (e.g. the chobby menu archive, base content).  These must NOT
 --- be deleted or the engine will lose access to menu textures/etc. when it
 --- performs internal VFS remap operations (e.g. battle preview UseArchive).
-local function GetProtectedSdpPaths()
-	local protected = {}
-	local archives = VFS.GetLoadedArchives()
-	if not archives then
-		return protected
+--- Returns nil when the loaded-archive set cannot be determined; callers
+--- must then abort rather than delete blindly.
+local function GetProtectedSdpNames()
+	if not (VFS.GetLoadedArchives and VFS.GetArchivePath) then
+		return nil
 	end
+	local archives = VFS.GetLoadedArchives()
+	if not archives or #archives == 0 then
+		return nil
+	end
+	local protected = {}
 	for i = 1, #archives do
 		local archivePath = VFS.GetArchivePath(archives[i])
-		if archivePath then
-			-- Normalise path separators so the lookup works cross-platform
-			archivePath = archivePath:gsub("\\", "/")
-			protected[archivePath] = true
+		local fileName = archivePath and GetFileName(archivePath)
+		if fileName then
+			protected[fileName] = true
 			Spring.Log(LOG_SECTION, LOG.INFO,
-				"Protecting loaded archive: " .. archives[i] .. " -> " .. archivePath)
+				"Protecting loaded archive: " .. archives[i] .. " -> " .. fileName)
 		end
 	end
 	return protected
@@ -82,8 +97,14 @@ local function DoCleanup()
 
 	-- 2. Determine which .sdp files are backing currently-loaded archives.
 	--    These MUST be preserved to avoid VFS failures during this session
-	--    (e.g. texture loss when the engine remaps archives for battle preview).
-	local protected = GetProtectedSdpPaths()
+	--    (e.g. "Dependent archive not found" crashes when the engine rescans
+	--    archives on battle join, or texture loss during battle preview).
+	local protected = GetProtectedSdpNames()
+	if not protected then
+		Spring.Log(LOG_SECTION, LOG.WARNING,
+			"Could not determine loaded archives; skipping cleanup to avoid deleting in-use packages")
+		return false
+	end
 
 	-- 3. Delete stale .sdp manifests, skipping protected ones.
 	--    Pool files (the actual game data, ~2 GB) are NOT touched.
@@ -93,8 +114,8 @@ local function DoCleanup()
 	local skipped = 0
 	local failed  = 0
 	for i = 1, totalCount do
-		local path = sdpFiles[i]:gsub("\\", "/")
-		if protected[path] then
+		local fileName = GetFileName(sdpFiles[i])
+		if fileName and protected[fileName] then
 			skipped = skipped + 1
 		else
 			local ok, err = os_remove(sdpFiles[i])
