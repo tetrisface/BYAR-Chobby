@@ -175,7 +175,7 @@ local function decodeBlob(encoded)
   return parsed
 end
 
-local function decodeStartboxesSet(encoded)
+local function parseStartboxesSet(encoded)
   local parsed = decodeBlob(encoded)
   if not parsed then return nil end
   -- parsed is keyed by team count; flatten to the array the selector expects.
@@ -190,7 +190,7 @@ local function getStartboxesSet(mapName)
   local cached = startboxesSetByMap[mapName]
   if cached ~= nil then return cached or nil end
   local entry = mapDetails[mapName]
-  local arrangements = entry and entry.StartboxesSet and decodeStartboxesSet(entry.StartboxesSet)
+  local arrangements = entry and entry.StartboxesSet and parseStartboxesSet(entry.StartboxesSet)
   if entry and entry.StartboxesSet and not arrangements then
     Spring.Log("mapStartBoxes", LOG.WARNING, "Could not decode StartboxesSet for", mapName)
   end
@@ -267,58 +267,56 @@ local function buildPolygonConfig(arrangement)
   return config
 end
 
-local function loadPolygonStartboxes(mapName, allyTeamCount)
-  local startboxesSet = getStartboxesSet(mapName)
-  if not startboxesSet or #startboxesSet == 0 then return nil end
+-- Skirmish reads its set from mapDetails and multiplayer from the modoption, but the
+-- selection, the build and the shapes handed back are the same for both. Third return
+-- marks a set that was there and could not be used.
+local function resolveStartboxesSet(startboxesSet, allyTeamCount, source)
+  if not startboxesSet or #startboxesSet == 0 then return nil, nil, true end
 
   -- hand-edited mapDetails can be valid JSON of the wrong shape; keep a malformed set from crashing the build
-  local ok, config = pcall(function()
+  local ok, config, hasPolygon = pcall(function()
     local arrangement = selectArrangementForAllyTeamCount(startboxesSet, allyTeamCount or 2)
-    if not arrangement or not arrangementHasPolygon(arrangement) then return nil end
-    return buildPolygonConfig(arrangement)
+    if not arrangement then return nil end
+
+    return buildPolygonConfig(arrangement), arrangementHasPolygon(arrangement)
   end)
-  if not ok then
-    Spring.Log("mapStartBoxes", LOG.WARNING, "Skipping malformed polygon startboxes for", mapName)
-    return nil
+  if not ok or not config then
+    Spring.Log("mapStartBoxes", LOG.WARNING, "Skipping malformed startboxes set for", source)
+    return nil, nil, true
   end
 
-  return config
+  return config, hasPolygon
 end
 
--- MP twin of loadPolygonStartboxes: same selection and build, but fed by the
--- server-set mapmetadata_startboxes_set modoption instead of local mapDetails.
-local function loadPolygonStartboxesFromBlob(encoded, allyTeamCount)
+local function loadStartboxesSet(mapName, allyTeamCount)
+  local startboxesSet = getStartboxesSet(mapName)
+  if not startboxesSet then return nil end
+
+  return resolveStartboxesSet(startboxesSet, allyTeamCount, mapName)
+end
+
+local function decodeStartboxesSet(encoded, allyTeamCount)
   if not encoded or encoded == "" or encoded == "0" then return nil end
-  local startboxesSet = decodeStartboxesSet(encoded)
-  if not startboxesSet or #startboxesSet == 0 then return nil end
 
-  local ok, config = pcall(function()
-    local arrangement = selectArrangementForAllyTeamCount(startboxesSet, allyTeamCount or 2)
-    if not arrangement or not arrangementHasPolygon(arrangement) then return nil end
-    return buildPolygonConfig(arrangement)
-  end)
-  if not ok then
-    Spring.Log("mapStartBoxes", LOG.WARNING, "Skipping malformed startboxes set modoption")
-    return nil
-  end
-
-  return config
+  return resolveStartboxesSet(parseStartboxesSet(encoded), allyTeamCount, "modoption")
 end
 
 -- Game accepts 3+ point polygons here (expandPoly), so this has to as well.
+-- Third return marks a value that was set but unusable, so the lobby can say so
+-- rather than quietly showing the map default boxes.
 local function decodeStartboxOverride(encoded)
   if not encoded or encoded == "" or encoded == "0" then return nil end
   local parsed = decodeBlob(encoded)
-  if not parsed or type(parsed.startboxes) ~= "table" then return nil end
-  if #parsed.startboxes == 0 then return nil end
+  if not parsed or type(parsed.startboxes) ~= "table" then return nil, nil, true end
+  if #parsed.startboxes == 0 then return nil, nil, true end
 
   for _, box in ipairs(parsed.startboxes) do
     local poly = type(box) == "table" and box.poly
-    if type(poly) ~= "table" or #poly < 2 then return nil end
+    if type(poly) ~= "table" or #poly < 2 then return nil, nil, true end
     for _, point in ipairs(poly) do
-      if type(point) ~= "table" then return nil end
+      if type(point) ~= "table" then return nil, nil, true end
       local x, y = tonumber(point.x), tonumber(point.y)
-      if not (x and y) then return nil end
+      if not (x and y) then return nil, nil, true end
       point.x, point.y = x, y
     end
   end
@@ -326,7 +324,7 @@ local function decodeStartboxOverride(encoded)
   local ok, config = pcall(buildPolygonConfig, parsed)
   if not ok or not config then
     Spring.Log("mapStartBoxes", LOG.WARNING, "Skipping malformed startbox override modoption")
-    return nil
+    return nil, nil, true
   end
 
   return config, arrangementHasPolygon(parsed)
@@ -408,13 +406,18 @@ end
 -- mapmetadata_startboxes_set when its box count matches the team count. Boxes
 -- are 0-200 rects (two opposite corners). '=' padding is stripped so the value
 -- matches the base64url SPADS allows for this modoption.
+-- Accepts the lobby's raw left/top/right/bottom values, the chili box windows
+-- skirmish keeps in singleplayerboxes, and the 0-200 arrays addBox stores.
 local function encodeStartboxOverrideModoption(boxes)
   if not boxes then return nil end
 
   local startboxes = {}
   local i = 1
   while boxes[i] do
-    local b = boxes[i]
+    local b = boxes[i].spadsSizes or boxes[i]
+    if b[1] then
+      b = { left = b[1], top = b[2], right = b[3], bottom = b[4] }
+    end
     startboxes[i] = { poly = {
       { x = math.floor(b.left + 0.5),  y = math.floor(b.top + 0.5) },
       { x = math.floor(b.right + 0.5), y = math.floor(b.bottom + 0.5) },
@@ -432,42 +435,25 @@ local function encodeStartboxOverrideModoption(boxes)
   return (Spring.Utilities.Base64Encode(compressed):gsub("=+$", ""))
 end
 
--- how about some more helpers?
-local function initCustomBox(mapName)
-    singleplayerboxes = {}
-end
-
-local function addBox(left,top, right, bottom, allyTeam) --in spads order
-  initCustomBox()
-  singleplayerboxes[allyTeam] = {left,top,right,bottom}
-  -- if online then: function Interface:AddStartRect(allyNo, left, top, right, bottom)
-end
-
-local function removeBox(allyTeam)
-  initCustomBox()
-  if singleplayerboxes[allyTeam] then
+-- Emptied in place rather than reassigned: the table is handed out by reference in the
+-- return block below, so rebinding the local would leave every reader holding the old one.
+local function clearBoxes()
+  for allyTeam in pairs(singleplayerboxes) do
     singleplayerboxes[allyTeam] = nil
   end
 end
 
-local function clearBoxes()
-  initCustomBox()
-  singleplayerboxes = {}
-end
+-- The boxes a skirmish launches with are written here as a whole set when Start is
+-- pressed, keyed the same way the lobby keys its own rects.
+local function setBoxes(boxes)
+  clearBoxes()
+  if not boxes then
+    return
+  end
 
-local function getBox(allyTeam)
-  if savedBoxes[mapName] == nil then
-    initCustomBox(mapName)
+  for allyTeam, box in pairs(boxes) do
+    singleplayerboxes[allyTeam] = box
   end
-  if singleplayerboxes then
-    return singleplayerboxes[allyTeam]
-  else
-    local defaultboxes =  selectStartBoxesForAllyTeamCount(mapName,2)
-    if defaultboxes then
-      return defaultboxes[allyTeam]
-    end
-  end
-  return nil
 end
 
 return {
@@ -477,12 +463,10 @@ return {
   makeAllyTeamBoxFromPolygon = makeAllyTeamBoxFromPolygon,
   encodeStartboxesSetModoption = encodeStartboxesSetModoption,
   encodeStartboxOverrideModoption = encodeStartboxOverrideModoption,
-  loadPolygonStartboxes = loadPolygonStartboxes,
-  loadPolygonStartboxesFromBlob = loadPolygonStartboxesFromBlob,
+  loadStartboxesSet = loadStartboxesSet,
+  decodeStartboxesSet = decodeStartboxesSet,
   decodeStartboxOverride = decodeStartboxOverride,
-  getBox = getBox,
   clearBoxes = clearBoxes,
-  removeBox = removeBox,
-  addBox = addBox,
+  setBoxes = setBoxes,
   singleplayerboxes = singleplayerboxes,
 }
