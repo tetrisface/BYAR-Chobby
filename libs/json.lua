@@ -9,8 +9,9 @@
 --
 -- USAGE:
 -- This module exposes two functions:
---   encode(o)
+--   encode(o [, pretty])
 --     Returns the table / string / boolean / number / nil / json.null value as a JSON-encoded string.
+--     When pretty is true, the output is formatted with newlines and tab indentation.
 --   decode(json_string)
 --     Returns a Lua object populated with the data encoded in the JSON string json_string.
 --   repair(json_string)
@@ -21,6 +22,7 @@
 --   compat-5.1 if using Lua 5.0
 --
 -- CHANGELOG
+--   0.9.50.3 BAR changes: optional pretty-printing (tab indented) via encode(o, true).
 --   0.9.50.2 BAR changes: escape CR in encoded strings; add repair() for files corrupted by the missing escape.
 --   0.9.50.1 BAR changes by Beherith: fix issue when decoding empty arrays.
 --	 0.9.50 Radical performance improvement on decode from Eike Decker. Many thanks!
@@ -66,46 +68,54 @@ local isEncodable
 -----------------------------------------------------------------------------
 --- Encodes an arbitrary Lua object / variable.
 -- @param v The Lua object / variable to be JSON encoded.
+-- @param pretty When true, format the output with newlines and tab indentation.
+-- @param depth Internal recursion depth, used for indentation when pretty is set.
 -- @return String containing the JSON encoding in internal Lua string format (i.e. not unicode)
-local function encode (v)
+local function encode (v, pretty, depth)
   -- Handle nil values
   if v==nil then
     return "null"
   end
-  
-  local vtype = base.type(v)  
+
+  local vtype = base.type(v)
 
   -- Handle strings
-  if vtype=='string' then    
+  if vtype=='string' then
     return '"' .. encodeString(v) .. '"'	    -- Need to handle encoding in string
   end
-  
+
   -- Handle booleans
   if vtype=='number' or vtype=='boolean' then
     return base.tostring(v)
   end
-  
+
   -- Handle tables
   if vtype=='table' then
+    depth = depth or 0
     local rval = {}
     -- Consider arrays separately
     local bArray, maxCount = isArray(v)
     if bArray then
       for i = 1,maxCount do
-        table.insert(rval, encode(v[i]))
+        table.insert(rval, encode(v[i], pretty, depth+1))
       end
     else	-- An object, not an array
+      local colon = pretty and '": ' or '":'
       for i,j in base.pairs(v) do
         if isEncodable(i) and isEncodable(j) then
-          table.insert(rval, '"' .. encodeString(i) .. '":' .. encode(j))
+          table.insert(rval, '"' .. encodeString(i) .. colon .. encode(j, pretty, depth+1))
         end
       end
     end
+    local open, close = '{', '}'
     if bArray then
-      return '[' .. table.concat(rval,',') ..']'
-    else
-      return '{' .. table.concat(rval,',') .. '}'
+      open, close = '[', ']'
     end
+    if not pretty or #rval == 0 then
+      return open .. table.concat(rval,',') .. close
+    end
+    local inner = string.rep('\t', depth+1)
+    return open .. '\n' .. inner .. table.concat(rval, ',\n' .. inner) .. '\n' .. string.rep('\t', depth) .. close
   end
   
   -- Handle null values
