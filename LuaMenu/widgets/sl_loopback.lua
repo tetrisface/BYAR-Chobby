@@ -49,6 +49,12 @@ function WrapperLoopback.ReadReplayInfo(relativePath)
 	})
 end
 
+function WrapperLoopback.ReadReplayDetails(relativePath)
+	WG.Connector.Send("ReadReplayDetails", {
+		relativePath = relativePath
+	})
+end
+
 function WrapperLoopback.ParseMiniMap(mapPath, destination, miniMapSize)
 	WG.Connector.Send("ParseMiniMap", {
 		mapPath = mapPath,
@@ -243,6 +249,13 @@ local function ReplayInfo(command)
 	)
 end
 
+-- full replay setup (modoptions, start boxes, AIs), requested per replay on demand
+local function ReplayDetails(command)
+	if WG.ReplayHandler and WG.ReplayHandler.ReadReplayDetailsDone then
+		WG.ReplayHandler.ReadReplayDetailsDone(command)
+	end
+end
+
 
 -- init
 function widget:Initialize()
@@ -255,6 +268,7 @@ function widget:Initialize()
 	WG.WrapperLoopback = WrapperLoopback
 
 	WG.Connector.Register('ReplayInfo', ReplayInfo)
+	WG.Connector.Register('ReplayDetails', ReplayDetails)
 	WG.Connector.Register('ParseMiniMapFinished', ParseMiniMapFinished)
 	WG.Connector.Register('DownloadProgress', DownloadProgress)
 	WG.Connector.Register('DownloadFinished', DownloadFinished)
