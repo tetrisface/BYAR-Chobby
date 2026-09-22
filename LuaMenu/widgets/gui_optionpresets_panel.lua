@@ -77,7 +77,8 @@ local function saveJSONData()
 		-- maybe some logging
 		return
 	end
-	local jsonobj = Json.encode(jsondata)
+	-- pretty-printed so the file stays hand-inspectable
+	local jsonobj = Json.encode(jsondata, true)
 	modfile:write(jsonobj)
 	modfile:close()
 end
