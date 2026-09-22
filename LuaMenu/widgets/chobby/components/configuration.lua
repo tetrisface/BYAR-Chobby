@@ -1,7 +1,6 @@
-Configuration = LCS.class{}
+Configuration = LCS.class({})
 
 LIB_LOBBY_DIRNAME = "libs/liblobby/lobby/"
-
 
 -- all configuration attribute changes should use the :Set*Attribute*() and :Get*Attribute*() methods in order to assure proper functionality
 function Configuration:init()
@@ -19,25 +18,37 @@ function Configuration:init()
 
 	-- self.serverAddress = "localhost"
 	self.serverAddress = WG.Server.address
-	self.serverPort =  WG.Server.port
+	self.serverPort = WG.Server.port
 
 	self.chatFontSize = 18
 	self.fontName = "fonts/Poppins-Regular.otf"
 	self.fontRaw = {
-		[0] = {font = "fonts/Poppins-Medium.otf", size = 17, outline = false, shadow = true},
-		[1] = {size = 15, outline = true, shadow = false},
-		[2] = {size = 17, outline = false, shadow = true},
-		[3] = {size = 20, outline = false, shadow = true},
-		[4] = {size = 24, outline = true,  shadow = false},
-		[5] = {size = 24, outline = false, shadow = true},
-		[6] = {size = 28, outline = true, shadow = false},
-		[7] = {size = 28, outline = false, shadow = true},
+		[0] = { font = "fonts/Poppins-Medium.otf", size = 17, outline = false, shadow = true },
+		[1] = { size = 15, outline = true, shadow = false },
+		[2] = { size = 17, outline = false, shadow = true },
+		[3] = { size = 20, outline = false, shadow = true },
+		[4] = { size = 24, outline = true, shadow = false },
+		[5] = { size = 24, outline = false, shadow = true },
+		[6] = { size = 28, outline = true, shadow = false },
+		[7] = { size = 28, outline = false, shadow = true },
 	}
 	-- copy of skin Armada Blue
-	self.fontRaw[8] = {font = "fonts/n019003l.pfb", size = self.fontRaw[1].size, shadow = true, outlineColor = {0.05,0.05,0.05,0.9},}
-	self.fontRaw[9] = {font = "fonts/n019003l.pfb", size = self.fontRaw[2].size, shadow = true, outlineColor = {0.05,0.05,0.05,0.9},}
-	self.fontRaw[10] = {font = "fonts/n019003l.pfb", size = 14, shadow = true, outlineColor = {0.05,0.05,0.05,0.9},}
-	self.fontRaw[11] = {font = "fonts/n019003l.pfb", size = 17, shadow = true, outline = false, color = {0.5,0.5,0.5,0.9},}
+	self.fontRaw[8] = {
+		font = "fonts/n019003l.pfb",
+		size = self.fontRaw[1].size,
+		shadow = true,
+		outlineColor = { 0.05, 0.05, 0.05, 0.9 },
+	}
+	self.fontRaw[9] = {
+		font = "fonts/n019003l.pfb",
+		size = self.fontRaw[2].size,
+		shadow = true,
+		outlineColor = { 0.05, 0.05, 0.05, 0.9 },
+	}
+	self.fontRaw[10] =
+		{ font = "fonts/n019003l.pfb", size = 14, shadow = true, outlineColor = { 0.05, 0.05, 0.05, 0.9 } }
+	self.fontRaw[11] =
+		{ font = "fonts/n019003l.pfb", size = 17, shadow = true, outline = false, color = { 0.5, 0.5, 0.5, 0.9 } }
 
 	self.fontSpecial = {}
 	-- Lazy font creation: Font:New involves font file I/O + glyph atlas.
@@ -48,18 +59,18 @@ function Configuration:init()
 		__index = function(t, i)
 			local raw = fontRaw[i]
 			if raw then
-				local f = Font:New {
-					size         = raw.size,
-					font         = raw.font or fontName,
-					outline      = raw.outline,
-					shadow       = raw.shadow,
-					outlineColor = raw.outlineColor or {0.05,0.05,0.05,0.7},
-					color        = raw.color or {1,1,1,1},
-				}
+				local f = Font:New({
+					size = raw.size,
+					font = raw.font or fontName,
+					outline = raw.outline,
+					shadow = raw.shadow,
+					outlineColor = raw.outlineColor or { 0.05, 0.05, 0.05, 0.7 },
+					color = raw.color or { 1, 1, 1, 1 },
+				})
 				rawset(t, i, f)
 				return f
 			end
-		end
+		end,
 	})
 
 	-- self.uiScale, WG.uiScale, and self.uiScalesForScreenSizes will be overridden in Configuration:SetConfigData;
@@ -85,7 +96,7 @@ function Configuration:init()
 	self.password = false
 	self.autoLogin = true
 	self.rememberPassword = true
-	self.uploadLogPrompt = 'Prompt'
+	self.uploadLogPrompt = "Prompt"
 	self.firstLoginEver = true
 	self.canAuthenticateWithSteam = false
 	self.wantAuthenticateWithSteam = true
@@ -103,8 +114,9 @@ function Configuration:init()
 	self.battleFilterOutOfRange = false
 	-- self.battleFilterVsAI = nil
 	self.battleFilterRedundant = true
-	self.battleFilterRedundantRegions = {"EU - ", "USA - ", "AUS - ","EU - ENGINE TESTING ","US - ","AU - ", "UK - "}
-	self.hostRegions = {"DE","EU","EU2","US","US2","AU"}
+	self.battleFilterRedundantRegions =
+		{ "EU - ", "USA - ", "AUS - ", "EU - ENGINE TESTING ", "US - ", "AU - ", "UK - " }
+	self.hostRegions = { "DE", "EU", "EU2", "US", "US2", "AU" }
 
 	self.friendsFilterOnline = false
 
@@ -124,7 +136,7 @@ function Configuration:init()
 	self.IGNORE = 1
 	self.AVOID = 2
 	self.BLOCK = 3
-	self.disregardStatusNames = {"IGNORE", "AVOID", "BLOCK"}
+	self.disregardStatusNames = { "IGNORE", "AVOID", "BLOCK" }
 
 	self.ignoreLevel = false
 
@@ -137,26 +149,26 @@ function Configuration:init()
 	self.highlightedColor = "\255\125\255\0"
 	self.meColor = "\255\0\190\190"
 
-	self.moderatorColor = {0.2, 1.0, 0.2, 1}
-	self.founderColor = {0.7, 1, 0.65, 1}
+	self.moderatorColor = { 0.2, 1.0, 0.2, 1 }
+	self.founderColor = { 0.7, 1, 0.65, 1 }
 
 	self.disregardUserNameColor = {}
-	self.disregardUserNameColor[self.IGNORE] = {0.6, 0.6, 0.6, 1}
-	self.disregardUserNameColor[self.AVOID] = {0.8, 0.8, 0.6, 1}
-	self.disregardUserNameColor[self.BLOCK] = {0.8, 0.6, 0.6, 1}
+	self.disregardUserNameColor[self.IGNORE] = { 0.6, 0.6, 0.6, 1 }
+	self.disregardUserNameColor[self.AVOID] = { 0.8, 0.8, 0.6, 1 }
+	self.disregardUserNameColor[self.BLOCK] = { 0.8, 0.6, 0.6, 1 }
 
-	self.userNameColor = {1, 1, 1, 1}
-	self.myUserNameColor = {0.8, 0.3, 0.9, 1}
-	self.friendsColor = {0.8, 0.4, 0.1, 1}
+	self.userNameColor = { 1, 1, 1, 1 }
+	self.myUserNameColor = { 0.8, 0.3, 0.9, 1 }
+	self.friendsColor = { 0.8, 0.4, 0.1, 1 }
 
-	self.buttonFocusColor = {0.34,0.52,1,0.3}
-	self.buttonSelectedColor = {0.1, 0.58, 0.90, 0.9}--{1.0, 1.0, 1.0, 1.0}
+	self.buttonFocusColor = { 0.34, 0.52, 1, 0.3 }
+	self.buttonSelectedColor = { 0.1, 0.58, 0.90, 0.9 } --{1.0, 1.0, 1.0, 1.0}
 
 	self.skillUncertaintyColors = {
-		[0] = {1.00, 0.75, 0.16, 1.0},
-		[1] = {0.85, 0.638, 0.137, 1.0},
-		[2] = {0.60, 0.45, 0.096, 1.0},
-		[3] = {0.40, 0.30, 0.064, 1.0},
+		[0] = { 1.00, 0.75, 0.16, 1.0 },
+		[1] = { 0.85, 0.638, 0.137, 1.0 },
+		[2] = { 0.60, 0.45, 0.096, 1.0 },
+		[3] = { 0.40, 0.30, 0.064, 1.0 },
 	}
 
 	-- uncertainty smaller [1] will show skillUncertaintyColors[0]
@@ -169,13 +181,13 @@ function Configuration:init()
 	}
 
 	self.voteColor = {
-		["yes"]   = {0.00, 1.00, 0.00, 1.0}, -- green
-		["no"]    = {1.00, 0.00, 0.00, 1.0}, -- red
-		["blank"] = {1.00, 0.80, 0.00, 1.0}, -- yellow
-		["initVote"] = {0.80, 0.80, 0.80, 1.0}, -- grey
+		["yes"] = { 0.00, 1.00, 0.00, 1.0 }, -- green
+		["no"] = { 1.00, 0.00, 0.00, 1.0 }, -- red
+		["blank"] = { 1.00, 0.80, 0.00, 1.0 }, -- yellow
+		["initVote"] = { 0.80, 0.80, 0.80, 1.0 }, -- grey
 	}
 
-	self.showRank    = true
+	self.showRank = true
 	self.showSkillOpt = 2 -- 1: No 2: Yes 3: Detailed (with Uncertainty)
 	self.showCountry = false
 
@@ -225,24 +237,25 @@ function Configuration:init()
 	self.pluginsInstallDisclaimerAccepted = false
 	self.backConfirmation = {
 		multiplayer = {
-			self.leaveMultiplayerOnMainMenu and {
-				doNotAskAgainKey = "confirmation_mainMenuFromBattle",
-				question = "You are in a battle and will leave it if you return to the main menu. Are you sure you want to return to the main menu?",
-				testFunction = function ()
-					local battleID = lobby:GetMyBattleID()
-					if not battleID then
-						return false
-					end
-					if self.showMatchMakerBattles then
-						return true
-					end
-					local battle = lobby:GetBattle(battleID)
-					return (battle and not battle.isMatchMaker) or false
-				end
-			} or nil
+			self.leaveMultiplayerOnMainMenu
+					and {
+						doNotAskAgainKey = "confirmation_mainMenuFromBattle",
+						question = "You are in a battle and will leave it if you return to the main menu. Are you sure you want to return to the main menu?",
+						testFunction = function()
+							local battleID = lobby:GetMyBattleID()
+							if not battleID then
+								return false
+							end
+							if self.showMatchMakerBattles then
+								return true
+							end
+							local battle = lobby:GetBattle(battleID)
+							return (battle and not battle.isMatchMaker) or false
+						end,
+					}
+				or nil,
 		},
-		singleplayer = {
-		}
+		singleplayer = {},
 	}
 	local gameConfPath = LUA_DIRNAME .. "configs/gameConfig/"
 
@@ -269,9 +282,9 @@ function Configuration:init()
 	for index, subdir in ipairs(subdirs) do
 		-- get just the folder name
 		subdir = string.gsub(subdir, gameConfPath, "")
-		subdir = string.sub(subdir, 1, -2)	-- truncate trailing slash
+		subdir = string.sub(subdir, 1, -2) -- truncate trailing slash
 		Spring.Log(LOG_SECTION, LOG.NOTICE, "Detected game config", subdir)
-		gameConfigOptions[#gameConfigOptions+1] = subdir
+		gameConfigOptions[#gameConfigOptions + 1] = subdir
 	end
 
 	self.gameConfigOptions = {}
@@ -311,8 +324,11 @@ function Configuration:init()
 	self.simplifiedSkirmishSetup = true
 	self.randomSkirmishDifficulty = "easy"
 	self.debugMode = false
-	self.devMode = VFS.FileExists("devmode.txt") or VFS.FileExists("devmode.txt.txt") or VFS.FileExists("devmode.rtf.txt")
+	self.devMode = VFS.FileExists("devmode.txt")
+		or VFS.FileExists("devmode.txt.txt")
+		or VFS.FileExists("devmode.rtf.txt")
 	self.ShowhiddenModopions = false
+	self.devHotReloadAuto = false
 	self.enableProfiler = false
 	self.enableInspector = false
 	self.enableCacheRapidPool = true
@@ -354,8 +370,8 @@ function Configuration:init()
 
 	self.language = "en"
 	self.languages = {
-		["en"] = {locale = "en", name="English"},
-		["de"] = {locale = "de", name="Deutsch"},
+		["en"] = { locale = "en", name = "English" },
+		["de"] = { locale = "de", name = "Deutsch" },
 	}
 
 	self.lobby_fullscreen = 1
@@ -372,7 +388,7 @@ function Configuration:init()
 			end
 			setmetatable(t, nil)
 			return rawget(t, name)
-		end
+		end,
 	})
 
 	self.AtiIntelSettingsOverride = {
@@ -387,7 +403,8 @@ function Configuration:init()
 	else
 		self.game_settings = VFS.Include(LUA_DIRNAME .. "configs/springsettings/springsettings.lua")
 	end
-	self.forcedCompatibilityProfile = VFS.Include(LUA_DIRNAME .. "configs/springsettings/forcedCompatibilityProfile.lua")
+	self.forcedCompatibilityProfile =
+		VFS.Include(LUA_DIRNAME .. "configs/springsettings/forcedCompatibilityProfile.lua")
 
 	local default = self.gameConfig.SettingsPresetFunc and self.gameConfig.SettingsPresetFunc()
 	if default then
@@ -405,9 +422,71 @@ function Configuration:init()
 	self.downloadRetryCount = 3
 
 	local saneCharacterList = {
-		"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
-		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "[", "]", "_",
+		"a",
+		"b",
+		"c",
+		"d",
+		"e",
+		"f",
+		"g",
+		"h",
+		"i",
+		"j",
+		"k",
+		"l",
+		"m",
+		"n",
+		"o",
+		"p",
+		"q",
+		"r",
+		"s",
+		"t",
+		"u",
+		"v",
+		"w",
+		"x",
+		"y",
+		"z",
+		"A",
+		"B",
+		"C",
+		"D",
+		"E",
+		"F",
+		"G",
+		"H",
+		"I",
+		"J",
+		"K",
+		"L",
+		"M",
+		"N",
+		"O",
+		"P",
+		"Q",
+		"R",
+		"S",
+		"T",
+		"U",
+		"V",
+		"W",
+		"X",
+		"Y",
+		"Z",
+		"0",
+		"1",
+		"2",
+		"3",
+		"4",
+		"5",
+		"6",
+		"7",
+		"8",
+		"9",
+		"[",
+		"]",
+		"_",
 	}
 	self.saneCharacters = {}
 	for i = 1, #saneCharacterList do
@@ -415,7 +494,9 @@ function Configuration:init()
 	end
 
 	local engineSaneCharacterList = {
-		"-", ".", " ",
+		"-",
+		".",
+		" ",
 	}
 	self.engineSaneCharacters = {}
 	for i = 1, #engineSaneCharacterList do
@@ -436,13 +517,13 @@ function Configuration:init()
 	self.BTLEX_BARMANAGER = "* BarManager|"
 
 	-- tooltip prefixes
-	self.USER_TOOLTIP_PREFIX    = "user_"
+	self.USER_TOOLTIP_PREFIX = "user_"
 	self.USER_SP_TOOLTIP_PREFIX = "user_single_"
 	self.USER_CH_TOOLTIP_PREFIX = "user_chat_s_"
 	self.USER_MP_TOOLTIP_PREFIX = "user_battle_"
-	self.BATTLE_TOOLTIP_PREFIX  = "battle_tooltip_"
+	self.BATTLE_TOOLTIP_PREFIX = "battle_tooltip_"
 	self.MINIMAP_TOOLTIP_PREFIX = "minimap_tooltip_"
-	self.REPLAY_TOOLTIP_PREFIX	= "replay_tooltip_"
+	self.REPLAY_TOOLTIP_PREFIX = "replay_tooltip_"
 
 	-- should be removed at about 1.1.2024 together with all other occurences of tempChangedShowSkill
 	-- remember if new default of showSkill was applied
@@ -452,21 +533,30 @@ function Configuration:init()
 	self.rejoinID = "nil"
 end
 
-
 ---------------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------------
 
 function Configuration:LoadGameConfig(path)
 	self.gameConfig = VFS.Include(path)
-	if type(self.gameConfig) ~= 'table' then
-		Spring.Log("Settings", LOG.ERROR, 'Chobby configuration error. Returned game config is not a table: ' .. tostring(path))
+	if type(self.gameConfig) ~= "table" then
+		Spring.Log(
+			"Settings",
+			LOG.ERROR,
+			"Chobby configuration error. Returned game config is not a table: " .. tostring(path)
+		)
 		return
 	end
-	local mandatoryFields = {"settingsNames"}
+	local mandatoryFields = { "settingsNames" }
 	for _, mandatoryField in ipairs(mandatoryFields) do
 		if self.gameConfig[mandatoryField] == nil then
-			Spring.Log("Settings", LOG.ERROR, "Chobby configuration error. Mandatory field is missing: " .. mandatoryField .. ". Check your game settings")
+			Spring.Log(
+				"Settings",
+				LOG.ERROR,
+				"Chobby configuration error. Mandatory field is missing: "
+					.. mandatoryField
+					.. ". Check your game settings"
+			)
 		end
 	end
 	localLobby.useTeamColor = not self.gameConfig.disableColorChoosing
@@ -497,7 +587,11 @@ function Configuration:SetSpringsettingsValue(key, value, compatOverride)
 		Spring.Log("Settings", LOG.WARNING, "No such key: " .. tostring(key) .. ", but setting it as string anyway.")
 		Spring.SetConfigString(key, value)
 	else
-		Spring.Log("Settings", LOG.WARNING, "Unexpected key type: " .. configType .. ", but setting it as string anyway.")
+		Spring.Log(
+			"Settings",
+			LOG.WARNING,
+			"Unexpected key type: " .. configType .. ", but setting it as string anyway."
+		)
 		Spring.SetConfigString(key, value)
 	end
 end
@@ -549,7 +643,7 @@ function Configuration:SetSettingsConfigOption(name, newValue)
 			self:SetSpringsettingsValue(setting.applyName, springValue)
 		end
 	else
-		if setting.optionNames == nil or (not setting.optionNames[newValue]) then
+		if setting.optionNames == nil or not setting.optionNames[newValue] then
 			return false
 		end
 
@@ -566,7 +660,8 @@ function Configuration:SetSettingsConfigOption(name, newValue)
 				settingsFile:close()
 			end
 		else
-			local applyData = selectedOption.apply or (selectedOption.applyFunction and selectedOption.applyFunction(nil, self))
+			local applyData = selectedOption.apply
+				or (selectedOption.applyFunction and selectedOption.applyFunction(nil, self))
 			if not applyData then
 				return true
 			end
@@ -641,7 +736,14 @@ function Configuration:SetConfigData(data)
 
 	if data.battleFilterVsAI ~= nil then
 		self.battleFilterPvMode = data.battleFilterVsAI and 2 or 1
-		Spring.Log("Settings", LOG.NOTICE, ("Migrated battleFilterVsAI (%s) -> battleFilterPvMode (%d)"):format(tostring(data.battleFilterVsAI), self.battleFilterPvMode))
+		Spring.Log(
+			"Settings",
+			LOG.NOTICE,
+			("Migrated battleFilterVsAI (%s) -> battleFilterPvMode (%d)"):format(
+				tostring(data.battleFilterVsAI),
+				self.battleFilterPvMode
+			)
+		)
 	end
 
 	-- should be removed at 1.1.2024
@@ -670,7 +772,8 @@ function Configuration:SetConfigData(data)
 	-- Fix old memory
 	self.game_settings.UnitIconDist = nil
 
-	local newSpringsettings, onlyIfMissingSettings = VFS.Include(LUA_DIRNAME .. "configs/springsettings/springsettingsChanges.lua")
+	local newSpringsettings, onlyIfMissingSettings =
+		VFS.Include(LUA_DIRNAME .. "configs/springsettings/springsettingsChanges.lua")
 	for key, value in pairs(newSpringsettings) do
 		self.game_settings[key] = value
 	end
@@ -739,7 +842,7 @@ function Configuration:GetConfigData()
 		debugAutoWin = self.debugAutoWin,
 		enableProfiler = self.enableProfiler,
 		enableInspector = self.enableInspector,
-		enableCacheRapidPool= self.enableCacheRapidPool,
+		enableCacheRapidPool = self.enableCacheRapidPool,
 		showCampaignButton = self.showCampaignButton,
 		showPlanetUnlocks = self.showPlanetUnlocks,
 		showPlanetEnemyUnits = self.showPlanetEnemyUnits,
@@ -785,6 +888,7 @@ function Configuration:GetConfigData()
 		showOldAiVersions = self.showOldAiVersions,
 		showAiOptions = self.showAiOptions,
 		ShowhiddenModopions = self.ShowhiddenModopions,
+		devHotReloadAuto = self.devHotReloadAuto,
 		chatFontSize = self.chatFontSize,
 		myAccountID = self.myAccountID,
 		lastAddedAiName = self.lastAddedAiName,
@@ -797,16 +901,16 @@ function Configuration:GetConfigData()
 		nextCampaignSaveNumber = self.nextCampaignSaveNumber,
 		steamReleasePopupSeen = self.steamReleasePopupSeen,
 		campaignConfigName = self.campaignConfigName,
-		showSkill   = self.showSkill,
-		showSkillOpt   = self.showSkillOpt,
-		showRank    = self.showRank,
+		showSkill = self.showSkill,
+		showSkillOpt = self.showSkillOpt,
+		showRank = self.showRank,
 		showCountry = self.showCountry,
 		useLastGameSpectatorState = self.useLastGameSpectatorState,
 		friendsFilterOnline = self.friendsFilterOnline,
 		queueExitConfirmPromptDoNotAskAgain = self.queueExitConfirmPromptDoNotAskAgain,
 		pluginsInstallDisclaimerAccepted = self.pluginsInstallDisclaimerAccepted,
 		supperAnnouncementKey = self.supperAnnouncementKey,
-		rejoinBattleID = self.rejoinBattleID
+		rejoinBattleID = self.rejoinBattleID,
 	}
 end
 
@@ -820,7 +924,7 @@ function Configuration:SetConfigValue(key, value)
 	end
 	-- when a local chobby-install previously used a server formatted like "server%d.beyondallreason.info", then ignore the locally saved address and use the one from chobby_config.json instead (which is already set at chobby start).
 	-- this way changes to chobby_config.json take effect for all users with unchanged serverAddress (still users using localhost or anything else stay uneffected)
-	if (key == "serverAddress" and string.find(value, "server%d.beyondallreason.info")) then
+	if key == "serverAddress" and string.find(value, "server%d.beyondallreason.info") then
 		return
 	end
 	self[key] = value
@@ -960,11 +1064,11 @@ function Configuration:GetFont(sizeScale, specialName, specialData, rawSize)
 		specialData = specialData or {}
 		specialData.font = specialData.font or self.fontName
 		specialData.size = size
-		
-		specialData.color        = specialData.color or {1,1,1,1}
-		specialData.outlineColor = specialData.outlineColor or {0.05,0.05,0.05,0.9}
-		specialData.outline      = specialData.outline or false
-		specialData.shadow       = specialData.shadow or true
+
+		specialData.color = specialData.color or { 1, 1, 1, 1 }
+		specialData.outlineColor = specialData.outlineColor or { 0.05, 0.05, 0.05, 0.9 }
+		specialData.outline = specialData.outline or false
+		specialData.shadow = specialData.shadow or true
 		self.fontSpecial[size][specialName] = Font:New(specialData)
 	end
 	return self.fontSpecial[size][specialName]
@@ -973,7 +1077,7 @@ end
 function Configuration:GetHintFont(sizeScale, specialName, specialData, rawSize)
 	specialName = (specialName or "") .. "_hint_" .. sizeScale
 	specialData = specialData or {}
-	specialData.color = {1,1,1,0.48}
+	specialData.color = { 1, 1, 1, 0.48 }
 	return self:GetFont(sizeScale, specialName, specialData, rawSize)
 end
 
@@ -1029,12 +1133,16 @@ function Configuration:GetMinimapSmallImage(mapName)
 	if not VFS.FileExists(filePath) then
 		filePath = "LuaMenu/Images/Minimaps/" .. mapName .. ".jpg"
 		if not VFS.FileExists(filePath) then
-			Spring.Log("Chobby", LOG.WARNING,"GetMinimapSmallImage not found for",mapName)
+			Spring.Log("Chobby", LOG.WARNING, "GetMinimapSmallImage not found for", mapName)
 			filePath = "LuaMenu/Images/minimapNotFound.png"
-		else found = true end
-	else found = true end
+		else
+			found = true
+		end
+	else
+		found = true
+	end
 
---[[ 	if WG.WrapperLoopback and WG.WrapperLoopback.DownloadImage and (not VFS.FileExists(filePath)) then
+	--[[ 	if WG.WrapperLoopback and WG.WrapperLoopback.DownloadImage and (not VFS.FileExists(filePath)) then
 		if not self.minimapThumbDownloads[mapName] then
 			Spring.CreateDir("LuaMenu/Images/MinimapThumbnails")
 			WG.WrapperLoopback.DownloadImage({ImageUrl = "http://zero-k.info/Resources/" .. mapName .. ".thumbnail.jpg", TargetPath = filePath})
@@ -1042,7 +1150,7 @@ function Configuration:GetMinimapSmallImage(mapName)
 		end
 		return filePath, true
 	end ]]
-	
+
 	if found then
 		minimapSmallImageCache[mapName] = filePath
 	end
@@ -1059,10 +1167,10 @@ function Configuration:GetMinimapImage(mapName)
 		filePath = "LuaMenu/Images/Minimaps/" .. mapName .. ".jpg"
 	end
 	if not VFS.FileExists(filePath) then
-	 	Spring.Log("Chobby", LOG.WARNING,"GetMinimapImage not found for",mapName)
-	 	filePath = "LuaMenu/Images/minimapNotFound.png"
+		Spring.Log("Chobby", LOG.WARNING, "GetMinimapImage not found for", mapName)
+		filePath = "LuaMenu/Images/minimapNotFound.png"
 	end
---[[ 	if WG.WrapperLoopback and WG.WrapperLoopback.DownloadImage and (not VFS.FileExists(filePath)) then
+	--[[ 	if WG.WrapperLoopback and WG.WrapperLoopback.DownloadImage and (not VFS.FileExists(filePath)) then
 		if not self.minimapDownloads[mapName] then
 			Spring.CreateDir("LuaMenu/Images/Minimaps")
 			WG.WrapperLoopback.DownloadImage({ImageUrl = "http://zero-k.info/Resources/" .. mapName .. ".minimap.jpg", TargetPath = filePath})
@@ -1106,12 +1214,18 @@ function Configuration:GetTruncatedEngineVersion()
 		-- Add as required.
 		return (Spring.Utilities.GetEngineVersion() .. ".0")
 	else
-		return string.gsub(string.gsub(string.gsub(Spring.Utilities.GetEngineVersion(), " maintenance", ""), " develop", "")," BAR", "")
+		return string.gsub(
+			string.gsub(string.gsub(Spring.Utilities.GetEngineVersion(), " maintenance", ""), " develop", ""),
+			" BAR",
+			""
+		)
 	end
 end
 
 function Configuration:IsValidEngineVersion(engineVersion)
-	local validengine = (engineVersion == Spring.Utilities.GetEngineVersion() or engineVersion == self:GetTruncatedEngineVersion())
+	local validengine = (
+		engineVersion == Spring.Utilities.GetEngineVersion() or engineVersion == self:GetTruncatedEngineVersion()
+	)
 	--Spring.Echo(" Configuration:IsValidEngineVersion(engineVersion)",engineVersion, validengine)
 	--Spring.Echo(" Spring.Utilities.GetEngineVersion() ",Spring.Utilities.GetEngineVersion() )
 	--Spring.Echo(" self:GetTruncatedEngineVersion()",self:GetTruncatedEngineVersion())
@@ -1131,9 +1245,9 @@ function Configuration:SanitizeEngineVersion(engineVersion)
 	local oldFormat = "(%d+)%.(%d+)%.(%d+)%-(%d+)%-g([%x][%x][%x][%x][%x][%x][%x])%s"
 	local newFormat = "(%d+)%.(%d+)%.(%d+)"
 	if not ret:match(oldFormat) and not ret:match(newFormat) then
-        Spring.Echo("Invalid engine version format: " .. engineVersion)
+		Spring.Echo("Invalid engine version format: " .. engineVersion)
 		ret = ""
-    end
+	end
 
 	return ret
 end
@@ -1176,11 +1290,15 @@ function Configuration:GetDefaultGameName()
 		Spring.Log(LOG_SECTION, LOG.ERROR, "self.gameConfig not present in Configuration:GetDefaultGameName()")
 		return false
 	end
-	
-	if self.gameConfig and self.gameConfig._defaultGameRapidTag then 
+
+	if self.gameConfig and self.gameConfig._defaultGameRapidTag then
 		rapidTag = self.gameConfig._defaultGameRapidTag
 	else
-		Spring.Log(LOG_SECTION, LOG.ERROR, "self.gameConfig._defaultGameRapidTag not present in Configuration:GetDefaultGameName(), using: Beyond All Reason $VERSION")
+		Spring.Log(
+			LOG_SECTION,
+			LOG.ERROR,
+			"self.gameConfig._defaultGameRapidTag not present in Configuration:GetDefaultGameName(), using: Beyond All Reason $VERSION"
+		)
 		return "Beyond All Reason $VERSION"
 	end
 
@@ -1217,8 +1335,8 @@ function Configuration:GetIsRunning64Bit()
 		return self.isRunning64Bit
 	end
 	-- if Platform then
-		-- osWordSize is not the same as spring bit version.
-		--return Platform.osWordSize == 64
+	-- osWordSize is not the same as spring bit version.
+	--return Platform.osWordSize == 64
 	-- end
 	local infologFile, err = io.open("infolog.txt", "r")
 	if not infologFile then
@@ -1294,7 +1412,7 @@ end
 local function ShallowCopy(orig)
 	local orig_type = type(orig)
 	local copy
-	if orig_type == 'table' then
+	if orig_type == "table" then
 		copy = {}
 		for orig_key, orig_value in pairs(orig) do
 			copy[orig_key] = orig_value
@@ -1337,12 +1455,15 @@ function Configuration:_CallListeners(event, ...)
 		return nil -- no event listeners
 	end
 	local eventListeners = ShallowCopy(self.listeners[event])
-	local args = {...}
+	local args = { ... }
 	local n = select("#", ...)
 	for i = 1, #eventListeners do
 		local listener = eventListeners[i]
-		xpcall(function() listener(listener, unpack(args, 1, n)) end,
-			function(err) self:_PrintError(err) end )
+		xpcall(function()
+			listener(listener, unpack(args, 1, n))
+		end, function(err)
+			self:_PrintError(err)
+		end)
 	end
 	return true
 end
