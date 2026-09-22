@@ -13,11 +13,15 @@
 --     Returns the table / string / boolean / number / nil / json.null value as a JSON-encoded string.
 --   decode(json_string)
 --     Returns a Lua object populated with the data encoded in the JSON string json_string.
+--   repair(json_string)
+--     Escapes raw CR/LF bytes found inside string values, recovering JSON written by
+--     encoders that failed to escape them.
 --
 -- REQUIREMENTS:
 --   compat-5.1 if using Lua 5.0
 --
 -- CHANGELOG
+--   0.9.50.2 BAR changes: escape CR in encoded strings; add repair() for files corrupted by the missing escape.
 --   0.9.50.1 BAR changes by Beherith: fix issue when decoding empty arrays.
 --	 0.9.50 Radical performance improvement on decode from Eike Decker. Many thanks!
 --	 0.9.40 Changed licence to MIT License (MIT)
@@ -136,9 +140,42 @@ end
 -- This just involves back-quoting inverted commas, back-quotes and newlines, I think ;-)
 -- @param s The string to return as a JSON encoded (i.e. backquoted string)
 -- @return The string appropriately escaped.
-local qrep = {["\\"]="\\\\", ['"']='\\"',['\n']='\\n',['\t']='\\t'}
+local qrep = {["\\"]="\\\\", ['"']='\\"',['\n']='\\n',['\r']='\\r',['\t']='\\t'}
 function encodeString(s)
-  return tostring(s):gsub('["\\\n\t]',qrep)
+  return tostring(s):gsub('["\\\n\r\t]',qrep)
+end
+
+--- Repairs JSON written by encoders that put raw CR/LF bytes inside string values
+-- (encodeString did so for CR until 0.9.50.2), which decode() rejects.
+-- Only bytes inside double-quoted strings are escaped; everything outside strings,
+-- including structural whitespace of formatted JSON, passes through untouched.
+-- @param s The JSON string to repair.
+-- @return The repaired JSON string.
+local function repair(s)
+  local out = {}
+  local inString = false
+  local i = 1
+  while i <= #s do
+    local c = s:sub(i,i)
+    if not inString then
+      if c == '"' then inString = true end
+      table.insert(out, c)
+    elseif c == '\\' then
+      table.insert(out, s:sub(i,i+1))
+      i = i + 1
+    elseif c == '"' then
+      inString = false
+      table.insert(out, c)
+    elseif c == '\r' then
+      table.insert(out, '\\r')
+    elseif c == '\n' then
+      table.insert(out, '\\n')
+    else
+      table.insert(out, c)
+    end
+    i = i + 1
+  end
+  return table.concat(out)
 end
 
 -- Determines whether the given Lua type is an array or a table / dictionary.
@@ -542,4 +579,5 @@ return {
 	encode = encode,
 	decode = instrumentedDecode,
 	null = null,
+	repair = repair,
 }
