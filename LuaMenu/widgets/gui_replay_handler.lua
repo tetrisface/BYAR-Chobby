@@ -166,6 +166,171 @@ local function playerWidget(playerInfo)
 	return ret
 end
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Save as preset
+
+-- pending ReadReplayDetails requests, keyed by replay path
+local pendingPresetRequests = {}
+
+-- covers launchers without the ReadReplayDetails extension, which never reply
+local PRESET_DETAILS_TIMEOUT_SECONDS = 10
+
+local function ShowPresetFailurePopup()
+	WG.Chobby.InformationPopup(i18n("replay_details_failed"), {width = 420, height = 230})
+end
+
+-- battleStatus side index (0-based into sidedata) for a replay faction name
+local function sideIndexForFaction(faction)
+	local sideData = WG.Chobby.Configuration:GetSideData()
+	if not (faction and sideData) then
+		return nil
+	end
+	for i = 1, #sideData do
+		if string.lower(sideData[i].name) == string.lower(faction) then
+			return i - 1
+		end
+	end
+	return nil
+end
+
+-- Converts the launcher-parsed replay details into the optionsPresets.json
+-- schema applied by gui_optionpresets_panel.lua
+local function BuildPresetFromReplayDetails(mapName, details)
+	local preset = {
+		["Map"] = mapName,
+	}
+
+	if details.gameSettings and next(details.gameSettings) ~= nil then
+		preset["Modoptions"] = details.gameSettings
+	end
+
+	local allyTeams = details.allyTeams or {}
+	table.sort(allyTeams, function(a, b)
+		return a.allyTeamId < b.allyTeamId
+	end)
+
+	-- Preset ally numbers and start boxes are dense 0-based, while replay
+	-- allyTeamIds may have holes (common in PvE).
+	local denseAllyNumber = {}
+	for index, allyTeam in ipairs(allyTeams) do
+		denseAllyNumber[allyTeam.allyTeamId] = index - 1
+	end
+
+	local startBoxes = {}
+	for _, allyTeam in ipairs(allyTeams) do
+		local box = allyTeam.startBox
+		if box then
+			-- replay boxes are 0-1 fractions, presets use the 0-200 grid
+			table.insert(startBoxes, {
+				left = math.floor(box.left * 200 + 0.5),
+				top = math.floor(box.top * 200 + 0.5),
+				right = math.floor(box.right * 200 + 0.5),
+				bottom = math.floor(box.bottom * 200 + 0.5),
+			})
+		end
+	end
+	if #startBoxes > 0 then
+		preset["Start Boxes"] = startBoxes
+	end
+
+	local bots = {}
+	local haveBots = false
+	for _, ai in ipairs(details.ais or {}) do
+		local key = ai.name or ("AI " .. tostring(ai.aiId))
+		if bots[key] then
+			key = key .. " (" .. tostring(ai.aiId) .. ")"
+		end
+		bots[key] = {
+			aiLib = ai.shortName,
+			allyNumber = denseAllyNumber[ai.allyTeamId] or 0,
+			aiVersion = ai.version,
+			aiOptions = ai.options,
+			side = sideIndexForFaction(ai.faction),
+			handicap = (ai.handicap and ai.handicap ~= 0) and ai.handicap or nil,
+			teamColor = ai.rgbColor and {ai.rgbColor.r, ai.rgbColor.g, ai.rgbColor.b} or nil,
+		}
+		haveBots = true
+	end
+	if haveBots then
+		preset["Bots"] = bots
+	end
+
+	return preset
+end
+
+local function OpenSavePresetPopup(suggestedName, preset)
+	WG.TextEntryWindow.CreateTextEntryWindow({
+		defaultValue = suggestedName,
+		caption = i18n("save_preset"),
+		labelCaption = i18n("save_preset_tooltip"),
+		hint = "Enter a name for your preset",
+		width = 450,
+		height = 280,
+		oklabel = "Save",
+		OnAccepted = function(presetName)
+			local function write()
+				if WG.OptionpresetsPanel.WritePresetFromTable(presetName, preset) then
+					WG.Chobby.InformationPopup(i18n("preset_saved_info"), {width = 420, height = 230})
+				end
+			end
+			if WG.OptionpresetsPanel.HasPreset(presetName) then
+				WG.Chobby.ConfirmationPopup(
+					write, i18n("preset_overwrite_confirm", {name = presetName}),
+					nil, 315, 200, i18n("yes"), i18n("no")
+				)
+			else
+				write()
+			end
+		end,
+		OnOpen = function(editBox)
+			editBox:SelectAll()
+		end,
+	})
+end
+
+-- onFinally runs on every outcome (reply, error, timeout) so the caller can
+-- clear its busy state. Returns whether a request was actually started.
+local function RequestSavePreset(replayPath, mapName, suggestedName, onFinally)
+	if pendingPresetRequests[replayPath] then
+		return false
+	end
+	if not (WG.WrapperLoopback and WG.WrapperLoopback.ReadReplayDetails and WG.OptionpresetsPanel) then
+		ShowPresetFailurePopup()
+		return false
+	end
+
+	if WG.Chobby.Configuration.debugMode then
+		Spring.Echo("ReplayHandler: requesting replay details for", replayPath)
+	end
+
+	pendingPresetRequests[replayPath] = function(details)
+		if onFinally then
+			onFinally()
+		end
+		if details.error then
+			Spring.Log("ReplayHandler", LOG.ERROR, "ReadReplayDetails failed: " .. tostring(details.error))
+			ShowPresetFailurePopup()
+			return
+		end
+		OpenSavePresetPopup(suggestedName, BuildPresetFromReplayDetails(mapName, details))
+	end
+
+	WG.WrapperLoopback.ReadReplayDetails(replayPath)
+	WG.Delay(function()
+		if pendingPresetRequests[replayPath] then
+			pendingPresetRequests[replayPath] = nil
+			Spring.Log("ReplayHandler", LOG.WARNING,
+				"No ReadReplayDetails reply for " .. replayPath .. " - launcher without the replay_details extension?")
+			if onFinally then
+				onFinally()
+			end
+			ShowPresetFailurePopup()
+		end
+	end, PRESET_DETAILS_TIMEOUT_SECONDS)
+	return true
+end
+
 local function CreateReplayEntry(
 	replayPath, engineName, gameName, mapName, players, time, winningAllyTeamIds
 )
@@ -315,6 +480,48 @@ local function CreateReplayEntry(
 		}
 	end
 
+	local function CheckReplayFileExists()
+		if not VFS.FileExists(replayPath) then
+			WG.Chobby.InformationPopup(i18n("replay_not_found"), {width = 315, height = 200})
+			return false
+		else
+			return true
+		end
+	end
+
+	-- Created before userList: it overlaps userList's greedy hit-test area,
+	-- and Chili gives earlier children hit-test priority.
+	if WG.OptionpresetsPanel and WG.TextEntryWindow then
+		Button:New {
+			x = "78%",
+			y = "10%",
+			bottom = "55%",
+			width = "10%",
+			caption = i18n("save_preset"),
+			classname = "option_button",
+			objectOverrideFont = WG.Chobby.Configuration:GetFont(2),
+			tooltip = i18n("save_preset_tooltip"),
+			OnClick = {
+				function(obj)
+					if not replayPath or not CheckReplayFileExists() then
+						return
+					end
+					local started = RequestSavePreset(
+						replayPath, mapName,
+						string.sub(replayDateString, 1, 10) .. " " .. mapName .. " " .. battleType(teams),
+						function()
+							obj:SetCaption(i18n("save_preset"))
+						end
+					)
+					if started then
+						obj:SetCaption("...")
+					end
+				end
+			},
+			parent = replayPanel,
+		}
+	end
+
 	-- Compute the teams/players lists
 
 	local userList = Chili.Control:New {
@@ -436,15 +643,6 @@ local function CreateReplayEntry(
 
 	userList.tooltip = WG.Chobby.Configuration.REPLAY_TOOLTIP_PREFIX .. replayPath
 	userList.greedyHitTest = true
-
-	local function CheckReplayFileExists()
-		if not VFS.FileExists(replayPath) then
-			WG.Chobby.InformationPopup(i18n("replay_not_found"), {width = 315, height = 200})
-			return false
-		else
-			return true
-		end
-	end
 
 	local function DeleteReplay()
 		-- There's no Lua wrapper for FileSystem::Remove() function, available in Spring (/rts/System/FileSystem/FileSystem.cpp)
@@ -874,6 +1072,19 @@ function ReplayHandler.ReadReplayInfoDone(path, engine, game, map, players, time
 		Spring.Echo("ReplayHandler: Calling replayListWindow.AddReplay")
 	end
 	replayListWindow.AddReplay(path, engine, game, map, players, time, winningAllyTeamIds)
+end
+
+function ReplayHandler.ReadReplayDetailsDone(command)
+	if WG.Chobby.Configuration.debugMode then
+		Spring.Echo("ReplayHandler: ReadReplayDetailsDone for", command and command.relativePath,
+			"error:", command and command.error)
+	end
+	local handler = command and command.relativePath and pendingPresetRequests[command.relativePath]
+	if not handler then
+		return
+	end
+	pendingPresetRequests[command.relativePath] = nil
+	handler(command)
 end
 
 function ReplayHandler.GetReplayById(replayPath)
